@@ -1,0 +1,10 @@
+{
+  "server": {
+    "port": 3035
+  },
+  "data_files": {
+    "cmi": "ipd_cmi.csv",
+    "transfers": "fundtransfer.csv",
+    "items": "items_summary_aggregated.csv"
+  }
+}
