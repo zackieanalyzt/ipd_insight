@@ -39,7 +39,25 @@ let itemsSortColumn = 'total_price';
 let itemsSortDirection = 'desc';
 let itemsTableSearchQuery = '';
 
+// Connection & Failover State
+let currentSystemMode = 'db'; // Track DB/CSV mode on client
+let statusPollInterval = null;
 
+// Dashboard 4: OPD Visits State
+let opdRawData = [];
+let selectedOpdYears = new Set();
+let selectedOpdMonths = new Set();
+let selectedOpdSex = new Set();
+let selectedOpdDiagTypes = new Set();
+let selectedOpdIns = 'all';
+let selectedOpdAmphur = 'all';
+let opdTrendChartInstance = null;
+let opdDiagTypeChartInstance = null;
+let opdInsChartInstance = null;
+let opdGeoChartInstance = null;
+let opdSortColumn = 'visit_count';
+let opdSortDirection = 'desc';
+let opdTableSearchQuery = '';
 
 // Distinct color palette for MDCs (Tailwind-like vibrant palette)
 const mdcColors = [
@@ -122,7 +140,25 @@ const itemsTableBody = document.getElementById('items-table-body');
 const btnItemsExportCsv = document.getElementById('btn-items-export-csv');
 const itemsGroupSortSelect = document.getElementById('items-group-sort-select');
 
+// Connection Status Banner Elements
+const connectionStatusBanner = document.getElementById('connection-status-banner');
+const statusBannerMessage = document.getElementById('status-banner-message');
+const btnReconnectRefresh = document.getElementById('btn-reconnect-refresh');
+const dataSourceBadge = document.getElementById('data-source-badge');
+const dataSourceText = document.getElementById('data-source-text');
 
+// Document Elements - Dashboard 4: OPD Visits
+const opdFiltersContainer = document.getElementById('opd-filters-container');
+const opdDashboardContent = document.getElementById('opd-dashboard-content');
+const opdYearFiltersContainer = document.getElementById('opd-year-filters');
+const opdMonthFiltersContainer = document.getElementById('opd-month-filters');
+const opdSexFiltersContainer = document.getElementById('opd-sex-filters');
+const opdDiagTypeFiltersContainer = document.getElementById('opd-diagtype-filters');
+const opdInsSelect = document.getElementById('opd-ins-select');
+const opdAmphurSelect = document.getElementById('opd-amphur-select');
+const opdTableSearchInput = document.getElementById('opd-table-search');
+const opdTableBody = document.getElementById('opd-table-body');
+const btnOpdExportCsv = document.getElementById('btn-opd-export-csv');
 
 // Initialize Dashboard Portal
 document.addEventListener('DOMContentLoaded', () => {
@@ -138,6 +174,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadAllData();
     setupEventListeners();
+    initConnectionStatusHandler();
+    setupOpdEventListeners();
 });
 
 function resizeAllCharts() {
@@ -393,10 +431,12 @@ function switchTab(tab) {
     cmiFiltersContainer.classList.remove('active');
     transferFiltersContainer.classList.remove('active');
     itemsFiltersContainer.classList.remove('active');
+    opdFiltersContainer.classList.remove('active');
     
     cmiDashboardContent.classList.remove('active');
     transferDashboardContent.classList.remove('active');
     itemsDashboardContent.classList.remove('active');
+    opdDashboardContent.classList.remove('active');
 
     if (tab === 'cmi') {
         cmiFiltersContainer.classList.add('active');
@@ -410,6 +450,10 @@ function switchTab(tab) {
         itemsFiltersContainer.classList.add('active');
         itemsDashboardContent.classList.add('active');
         updateItemsDashboard();
+    } else if (tab === 'opd') {
+        opdFiltersContainer.classList.add('active');
+        opdDashboardContent.classList.add('active');
+        updateOpdDashboard();
     }
 }
 
@@ -481,6 +525,39 @@ function resetActiveTabFilters() {
         itemsSearchQuery = '';
         itemsTableSearchInput.value = '';
         updateItemsDashboard();
+    } else if (currentTab === 'opd') {
+        const yearCheckboxes = opdYearFiltersContainer.querySelectorAll('input[type="checkbox"]');
+        yearCheckboxes.forEach(cb => {
+            cb.checked = true;
+            selectedOpdYears.add(parseInt(cb.value));
+        });
+
+        const monthCheckboxes = opdMonthFiltersContainer.querySelectorAll('input[type="checkbox"]');
+        monthCheckboxes.forEach(cb => {
+            cb.checked = true;
+            selectedOpdMonths.add(cb.value);
+            cb.parentElement.classList.add('checked');
+        });
+
+        const sexCheckboxes = opdSexFiltersContainer.querySelectorAll('input[type="checkbox"]');
+        sexCheckboxes.forEach(cb => {
+            cb.checked = true;
+            selectedOpdSex.add(cb.value);
+        });
+
+        const diagCheckboxes = opdDiagTypeFiltersContainer.querySelectorAll('input[type="checkbox"]');
+        diagCheckboxes.forEach(cb => {
+            cb.checked = true;
+            selectedOpdDiagTypes.add(cb.value);
+        });
+
+        opdInsSelect.value = 'all';
+        selectedOpdIns = 'all';
+        opdAmphurSelect.value = 'all';
+        selectedOpdAmphur = 'all';
+        opdTableSearchInput.value = '';
+        opdTableSearchQuery = '';
+        updateOpdDashboard();
     }
 }
 
@@ -490,148 +567,172 @@ function loadAllData() {
     let cmiLoaded = false;
     let transferLoaded = false;
     let itemsLoaded = false;
+    let opdLoaded = false;
 
-    function runParsing(configData) {
-        const cmiFile = (configData && configData.data_files && configData.data_files.cmi) || 'ipd_cmi.csv';
-        const transfersFile = (configData && configData.data_files && configData.data_files.transfers) || 'fundtransfer.csv';
-        const itemsFile = (configData && configData.data_files && configData.data_files.items) || 'items_summary_aggregated.csv';
-
-        // Load CMI Data directly from local CSV
-        Papa.parse(cmiFile, {
-            download: true,
-            header: true,
-            skipEmptyLines: true,
-            complete: function(results) {
-                if (!results.data || results.data.length === 0) {
-                    console.error('No data found in ' + cmiFile);
-                    cmiLoaded = true;
-                    if (cmiLoaded && transferLoaded && itemsLoaded) onAllDataReady();
-                    return;
-                }
-                cmiRawData = results.data.map(row => ({
-                    insure_group: row.insure_group,
-                    insure_desc: row.insure_desc ? row.insure_desc.trim() : '',
-                    mdc: row.mdc ? row.mdc.trim().padStart(2, '0') : '',
-                    mdc_desc: row.mdc_desc ? row.mdc_desc.trim() : '',
-                    total: parseInt(row.total) || 0,
-                    sum_adjrw: parseFloat(row.sum_adjrw) || 0,
-                    average_adjrw: parseFloat(row.average_adjrw) || 0,
-                    surgery_total: parseInt(row.surgery_total) || 0,
-                    surgery_sum_adjrw: parseFloat(row.surgery_sum_adjrw) || 0,
-                    med_total: parseInt(row.med_total) || 0,
-                    med_sum_adjrw: parseFloat(row.med_sum_adjrw) || 0,
-                    byear: parseInt(row.byear) || 0,
-                    year: parseInt(row.year) || 0,
-                    month: parseInt(row.month) || 0
-                })).filter(row => row.byear > 0 && row.total > 0 && row.mdc !== '' && row.insure_desc !== 'รวม');
-                
-                cmiLoaded = true;
-                if (cmiLoaded && transferLoaded && itemsLoaded) onAllDataReady();
-            },
-            error: function(err) {
-                console.error('Error loading CMI static CSV:', err);
-                cmiLoaded = true;
-                if (cmiLoaded && transferLoaded && itemsLoaded) onAllDataReady();
-            }
-        });
-
-        // Load Fund Transfer Data directly from local CSV
-        Papa.parse(transfersFile, {
-            download: true,
-            header: true,
-            skipEmptyLines: true,
-            complete: function(results) {
-                if (!results.data || results.data.length === 0) {
-                    console.error('No data found in ' + transfersFile);
-                    transferLoaded = true;
-                    if (cmiLoaded && transferLoaded && itemsLoaded) onAllDataReady();
-                    return;
-                }
-                transferRawData = results.data.map(row => {
-                    const amount = parseFloat(row.amount) || 0;
-                    const deduction = parseFloat(row.deduction) || 0;
-                    let remain = parseFloat(row.remain) || 0;
-
-                    // Fix the database data entry sign error: if amount is 0 and deduction is positive, remain should be negative
-                    if (amount === 0 && deduction > 0 && remain > 0) {
-                        remain = -remain;
-                    }
-
-                    return {
-                        no: row.no,
-                        transfer_date: row.transfer_date ? row.transfer_date.trim() : '',
-                        date: row.date ? row.date.trim() : '',
-                        month: row.month ? row.month.trim() : '',
-                        year: parseInt(row.year) || 0,
-                        sub_fund: row.sub_fund ? row.sub_fund.trim() : 'ไม่ระบุกองทุนย่อย',
-                        main_fund: row.main_fund ? row.main_fund.trim() : 'ไม่ระบุกองทุนหลัก',
-                        amount: amount,
-                        delay: parseFloat(row.delay) || 0,
-                        deduction: deduction,
-                        contract_guarantee: parseFloat(row.contract_guarantee) || 0,
-                        tax: parseFloat(row.tax) || 0,
-                        transfer_amount: remain,
-                        byear: parseInt(row.byear) || 0
-                    };
-                }).filter(row => row.byear > 0 && row.main_fund !== '');
-
-                transferLoaded = true;
-                if (cmiLoaded && transferLoaded && itemsLoaded) onAllDataReady();
-            },
-            error: function(err) {
-                console.error('Error loading Transfer static CSV:', err);
-                transferLoaded = true;
-                if (cmiLoaded && transferLoaded && itemsLoaded) onAllDataReady();
-            }
-        });
-
-        // Load Items Summary Data directly from local CSV
-        Papa.parse(itemsFile, {
-            download: true,
-            header: true,
-            skipEmptyLines: true,
-            complete: function(results) {
-                if (!results.data || results.data.length === 0) {
-                    console.error('No data found in ' + itemsFile);
-                    itemsLoaded = true;
-                    if (cmiLoaded && transferLoaded && itemsLoaded) onAllDataReady();
-                    return;
-                }
-                itemsRawData = results.data.map(row => ({
-                    visit_type: row.visit_type ? row.visit_type.trim() : 'ไม่ระบุประเภทผู้ป่วย',
-                    item_group: row.item_group ? row.item_group.trim() : 'ไม่ระบุกลุ่มบริการ',
-                    item_common_name: row.item_common_name ? row.item_common_name.trim() : 'ไม่ระบุรายการบริการ',
-                    total_quantity: parseInt(row.total_quantity) || 0,
-                    total_price: parseFloat(row.total_price) || 0,
-                    byear: parseInt(row.byear) || 0,
-                    year: parseInt(row.year) || 0,
-                    month: row.month ? row.month.toString().padStart(2, '0') : ''
-                })).filter(row => row.byear > 0 && row.item_group !== '');
-
-                itemsLoaded = true;
-                if (cmiLoaded && transferLoaded && itemsLoaded) onAllDataReady();
-            },
-            error: function(err) {
-                console.error('Error loading Items static CSV:', err);
-                itemsLoaded = true;
-                if (cmiLoaded && transferLoaded && itemsLoaded) onAllDataReady();
-            }
-        });
+    function checkAllLoaded() {
+        if (cmiLoaded && transferLoaded && itemsLoaded && opdLoaded) {
+            onAllDataReady();
+        }
     }
 
-    // Fetch config.json first to resolve CSV filenames
-    fetch('config.json')
-        .then(response => {
-            if (!response.ok) throw new Error('Network response not ok');
-            return response.json();
+    // Check system status first
+    fetch('api/status')
+        .then(res => {
+            if (!res.ok) throw new Error('Failed to fetch status');
+            return res.json();
         })
-        .then(configData => {
-            runParsing(configData);
+        .then(statusData => {
+            currentSystemMode = statusData.mode;
+            updateStatusBanner(statusData.mode, false);
         })
         .catch(err => {
-            console.warn('Unable to load config.json, falling back to default filenames:', err);
-            runParsing(null);
+            console.error('Error fetching system status on load:', err);
+            currentSystemMode = 'csv';
+            updateStatusBanner('csv', false);
         });
+
+    // Fetch CMI data from Server API
+    fetch('api/cmi')
+        .then(res => {
+            if (!res.ok) throw new Error('Failed to load CMI data');
+            return res.json();
+        })
+        .then(data => {
+            cmiRawData = data;
+            cmiLoaded = true;
+            checkAllLoaded();
+        })
+        .catch(err => {
+            console.error('Error loading CMI data:', err);
+            cmiLoaded = true;
+            checkAllLoaded();
+        });
+
+    // Fetch Transfers data from Server API
+    fetch('api/transfers')
+        .then(res => {
+            if (!res.ok) throw new Error('Failed to load Transfers data');
+            return res.json();
+        })
+        .then(data => {
+            transferRawData = data;
+            transferLoaded = true;
+            checkAllLoaded();
+        })
+        .catch(err => {
+            console.error('Error loading Transfers data:', err);
+            transferLoaded = true;
+            checkAllLoaded();
+        });
+
+    // Fetch Items Summary data from Server API
+    fetch('api/items')
+        .then(res => {
+            if (!res.ok) throw new Error('Failed to load Items data');
+            return res.json();
+        })
+        .then(data => {
+            itemsRawData = data;
+            itemsLoaded = true;
+            checkAllLoaded();
+        })
+        .catch(err => {
+            console.error('Error loading Items data:', err);
+            itemsLoaded = true;
+            checkAllLoaded();
+        });
+
+    // Fetch OPD Summary data from Server API
+    fetch('api/opd/summary')
+        .then(res => {
+            if (!res.ok) throw new Error('Failed to load OPD data');
+            return res.json();
+        })
+        .then(data => {
+            opdRawData = data;
+            opdLoaded = true;
+            checkAllLoaded();
+        })
+        .catch(err => {
+            console.error('Error loading OPD data:', err);
+            opdLoaded = true;
+            checkAllLoaded();
+        });
+}
+
+function initConnectionStatusHandler() {
+    // Polling Status Checker every 10 seconds
+    if (statusPollInterval) clearInterval(statusPollInterval);
+    
+    statusPollInterval = setInterval(() => {
+        fetch('api/status')
+            .then(res => {
+                if (!res.ok) throw new Error('Status endpoint error');
+                return res.json();
+            })
+            .then(statusData => {
+                const newMode = statusData.mode;
+                
+                // Case 1: Was DB, now CSV (Disconnection)
+                if (currentSystemMode === 'db' && newMode === 'csv') {
+                    currentSystemMode = 'csv';
+                    updateStatusBanner('csv', false);
+                }
+                // Case 2: Was CSV, now DB (Reconnection - show refresh button)
+                else if (currentSystemMode === 'csv' && newMode === 'db') {
+                    updateStatusBanner('db', true);
+                }
+            })
+            .catch(err => {
+                console.error('Status polling check failed:', err.message);
+                if (currentSystemMode === 'db') {
+                    currentSystemMode = 'csv';
+                    updateStatusBanner('csv', false);
+                }
+            });
+    }, 10000);
+
+    // Event listener for the reconnect refresh button
+    if (btnReconnectRefresh) {
+        btnReconnectRefresh.addEventListener('click', () => {
+            console.log('User triggered manual data reload from database...');
+            currentSystemMode = 'db';
+            updateStatusBanner('db', false); // Hide banner
+            loadAllData(); // Reload data from API
+        });
+    }
+}
+
+function updateStatusBanner(mode, suggestRefresh) {
+    // Update header status badge
+    if (dataSourceBadge && dataSourceText) {
+        if (mode === 'csv') {
+            dataSourceBadge.className = 'data-source-badge csv';
+            dataSourceText.innerText = 'Backup (CSV)';
+        } else if (mode === 'db') {
+            dataSourceBadge.className = 'data-source-badge db';
+            dataSourceText.innerText = 'Database (PostgreSQL)';
+        }
+    }
+
+    if (!connectionStatusBanner || !statusBannerMessage || !btnReconnectRefresh) return;
+
+    if (mode === 'csv') {
+        connectionStatusBanner.className = 'status-banner'; // Reset to standard warning styles
+        statusBannerMessage.innerHTML = `<i class="fa-solid fa-triangle-exclamation status-banner-icon"></i> ขณะนี้ระบบกำลังใช้ข้อมูลสำรองจากไฟล์ .csv เนื่องจากหลุดการเชื่อมต่อจากฐานข้อมูลหลัก (ข้อมูลอาจจะไม่เป็นปัจจุบัน)`;
+        btnReconnectRefresh.classList.add('hidden');
+        connectionStatusBanner.classList.remove('hidden');
+    } else if (mode === 'db') {
+        if (suggestRefresh) {
+            connectionStatusBanner.className = 'status-banner success'; // Add green success style
+            statusBannerMessage.innerHTML = `<i class="fa-solid fa-circle-check status-banner-icon"></i> เชื่อมต่อฐานข้อมูลหลักสำเร็จ ข้อมูลได้รับการกู้คืนแล้ว โปรดกดปุ่มด้านขวาเพื่อโหลดข้อมูลใหม่ล่าสุด`;
+            btnReconnectRefresh.classList.remove('hidden');
+            connectionStatusBanner.classList.remove('hidden');
+        } else {
+            connectionStatusBanner.classList.add('hidden');
+            btnReconnectRefresh.classList.add('hidden');
+        }
+    }
 }
 
 function updateLatestDataBadges() {
@@ -708,6 +809,7 @@ function onAllDataReady() {
     initializeCMIFilters();
     initializeTransferFilters();
     initializeItemsFilters();
+    initializeOpdFilters();
     updateLatestDataBadges();
     hideLoading();
     
@@ -2716,6 +2818,580 @@ function exportItemsTableToCsv() {
     
     downloadCsv(csvContent, `medical_items_summary_export_${Date.now()}.csv`);
 }
+
+// -----------------------------------------------------------------------------
+// DASHBOARD 4: OPD VISITS LOGIC
+// -----------------------------------------------------------------------------
+
+function initializeOpdFilters() {
+    // 1. Years
+    const uniqueYears = [...new Set(opdRawData.map(row => row.byear))].sort((a, b) => b - a);
+    selectedOpdYears = new Set(uniqueYears);
+    opdYearFiltersContainer.innerHTML = '';
+    uniqueYears.forEach(year => {
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = year;
+        checkbox.checked = true;
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) selectedOpdYears.add(year);
+            else selectedOpdYears.delete(year);
+            updateOpdDashboard();
+        });
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(`ปีงบประมาณ ${year}`));
+        opdYearFiltersContainer.appendChild(label);
+    });
+
+    // 2. Months
+    const monthNamesLong = {
+        '01': 'มกราคม', '02': 'กุมภาพันธ์', '03': 'มีนาคม', '04': 'เมษายน',
+        '05': 'พฤษภาคม', '06': 'มิถุนายน', '07': 'กรกฎาคม', '08': 'สิงหาคม',
+        '09': 'กันยายน', '10': 'ตุลาคม', '11': 'พฤศจิกายน', '12': 'ธันวาคม'
+    };
+    const uniqueMonths = [...new Set(opdRawData.map(row => row.month_visit))].sort();
+    selectedOpdMonths = new Set(uniqueMonths);
+    opdMonthFiltersContainer.innerHTML = '';
+    uniqueMonths.forEach(m => {
+        const name = monthNamesLong[m] || m;
+        const label = document.createElement('label');
+        label.className = 'checkbox-label checked';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = m;
+        checkbox.checked = true;
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                selectedOpdMonths.add(m);
+                label.classList.add('checked');
+            } else {
+                selectedOpdMonths.delete(m);
+                label.classList.remove('checked');
+            }
+            updateOpdDashboard();
+        });
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(name));
+        opdMonthFiltersContainer.appendChild(label);
+    });
+
+    // 3. Sex
+    const uniqueSexes = [...new Set(opdRawData.map(row => row.sex))].sort();
+    selectedOpdSex = new Set(uniqueSexes);
+    opdSexFiltersContainer.innerHTML = '';
+    uniqueSexes.forEach(sex => {
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = sex;
+        checkbox.checked = true;
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) selectedOpdSex.add(sex);
+            else selectedOpdSex.delete(sex);
+            updateOpdDashboard();
+        });
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(sex));
+        opdSexFiltersContainer.appendChild(label);
+    });
+
+    // 4. Diag Type (ประเภทการวินิจฉัย)
+    const diagTypeLabels = {
+        '1': 'Principal Diag (วินิจฉัยหลัก)',
+        '2': 'Co-morbidity (ร่วม)',
+        '3': 'Complication (แทรกซ้อน)',
+        '4': 'Other (อื่น ๆ)',
+        '5': 'External Cause (สาเหตุภายนอก)'
+    };
+    const uniqueDiagTypes = [...new Set(opdRawData.map(row => row.diag_type))].sort();
+    selectedOpdDiagTypes = new Set(uniqueDiagTypes);
+    opdDiagTypeFiltersContainer.innerHTML = '';
+    uniqueDiagTypes.forEach(dt => {
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = dt;
+        checkbox.checked = true;
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) selectedOpdDiagTypes.add(dt);
+            else selectedOpdDiagTypes.delete(dt);
+            updateOpdDashboard();
+        });
+        label.appendChild(checkbox);
+        const text = diagTypeLabels[dt] || `ประเภท ${dt}`;
+        label.appendChild(document.createTextNode(text));
+        opdDiagTypeFiltersContainer.appendChild(label);
+    });
+
+    // 5. Insurance Type (ins_type) Dropdown
+    const uniqueIns = [...new Set(opdRawData.map(row => row.ins_type))].sort();
+    opdInsSelect.innerHTML = '<option value="all">-- ทุกสิทธิ์การรักษา --</option>';
+    uniqueIns.forEach(ins => {
+        if (!ins) return;
+        const opt = document.createElement('option');
+        opt.value = ins;
+        opt.innerText = ins;
+        opdInsSelect.appendChild(opt);
+    });
+
+    // 6. Amphur Dropdown
+    const uniqueAmphurs = [...new Set(opdRawData.map(row => row.amphur))].sort();
+    opdAmphurSelect.innerHTML = '<option value="all">-- ทุกอำเภอ --</option>';
+    uniqueAmphurs.forEach(amp => {
+        if (!amp) return;
+        const opt = document.createElement('option');
+        opt.value = amp;
+        opt.innerText = amp;
+        opdAmphurSelect.appendChild(opt);
+    });
+}
+
+function getFilteredOpdData() {
+    return opdRawData.filter(row => {
+        if (!selectedOpdYears.has(row.byear)) return false;
+        if (!selectedOpdMonths.has(row.month_visit)) return false;
+        if (!selectedOpdSex.has(row.sex)) return false;
+        if (!selectedOpdDiagTypes.has(row.diag_type)) return false;
+        if (selectedOpdIns !== 'all' && row.ins_type !== selectedOpdIns) return false;
+        if (selectedOpdAmphur !== 'all' && row.amphur !== selectedOpdAmphur) return false;
+        return true;
+    });
+}
+
+function updateOpdDashboard() {
+    const filtered = getFilteredOpdData();
+
+    // 1. Compute KPIs
+    let totalVisits = 0;
+    let totalAgeWeightedSum = 0;
+    let maleVisits = 0;
+    let femaleVisits = 0;
+
+    filtered.forEach(row => {
+        totalVisits += row.visit_count;
+        totalAgeWeightedSum += row.sum_age;
+        if (row.sex === 'ชาย') {
+            maleVisits += row.visit_count;
+        } else if (row.sex === 'หญิง') {
+            femaleVisits += row.visit_count;
+        }
+    });
+
+    const avgAge = totalVisits > 0 ? (totalAgeWeightedSum / totalVisits) : 0;
+    const femalePct = totalVisits > 0 ? (femaleVisits / totalVisits * 100) : 0;
+    const malePct = totalVisits > 0 ? (maleVisits / totalVisits * 100) : 0;
+
+    // Set KPI text
+    document.getElementById('val-opd-total-visits').innerText = totalVisits.toLocaleString();
+    document.getElementById('val-opd-avg-age').innerText = avgAge.toFixed(2);
+    document.getElementById('val-opd-female-pct').innerText = `${femalePct.toFixed(1)}%`;
+    document.getElementById('val-opd-female-count').innerText = `${femaleVisits.toLocaleString()} ครั้ง`;
+    document.getElementById('val-opd-male-pct').innerText = `${malePct.toFixed(1)}%`;
+    document.getElementById('val-opd-male-count').innerText = `${maleVisits.toLocaleString()} ครั้ง`;
+
+    // 2. Render Charts
+    renderOpdTrendChart(filtered);
+    renderOpdDiagTypeChart(filtered);
+    renderOpdInsChart(filtered);
+    renderOpdGeoChart(filtered);
+
+    // 3. Render Table
+    renderOpdTable(filtered);
+}
+
+function renderOpdTrendChart(data) {
+    const canvas = document.getElementById('opdTrendChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    // Group by year_visit and month_visit
+    const monthlyVisits = {};
+    data.forEach(row => {
+        const key = `${row.year_visit}-${row.month_visit}`;
+        if (!monthlyVisits[key]) {
+            monthlyVisits[key] = { label: `${monthNamesThai[row.month_visit] || row.month_visit} ${row.year_visit}`, visits: 0 };
+        }
+        monthlyVisits[key].visits += row.visit_count;
+    });
+
+    const sortedKeys = Object.keys(monthlyVisits).sort();
+    const labels = sortedKeys.map(k => monthlyVisits[k].label);
+    const chartData = sortedKeys.map(k => monthlyVisits[k].visits);
+
+    if (opdTrendChartInstance) opdTrendChartInstance.destroy();
+
+    opdTrendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'จำนวนการรับบริการ (ครั้ง)',
+                data: chartData,
+                borderColor: '#4f46e5',
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+
+function renderOpdDiagTypeChart(data) {
+    const canvas = document.getElementById('opdDiagTypeChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    const diagTypeLabels = {
+        '1': 'Principal Diagnosis',
+        '2': 'Co-morbidity',
+        '3': 'Complication',
+        '4': 'Other',
+        '5': 'External Cause'
+    };
+
+    const grouped = {};
+    data.forEach(row => {
+        const label = diagTypeLabels[row.diag_type] || `ประเภท ${row.diag_type}`;
+        grouped[label] = (grouped[label] || 0) + row.visit_count;
+    });
+
+    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]);
+    const labels = sorted.map(e => e[0]);
+    const values = sorted.map(e => e[1]);
+
+    if (opdDiagTypeChartInstance) opdDiagTypeChartInstance.destroy();
+
+    opdDiagTypeChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'จำนวนครั้ง (ครั้ง)',
+                data: values,
+                backgroundColor: '#3b82f6',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+}
+
+function renderOpdInsChart(data) {
+    const canvas = document.getElementById('opdInsChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    const grouped = {};
+    data.forEach(row => {
+        const label = row.ins_type || 'ไม่ระบุ';
+        grouped[label] = (grouped[label] || 0) + row.visit_count;
+    });
+
+    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]);
+    
+    const maxItems = 5;
+    const labels = [];
+    const values = [];
+    let otherSum = 0;
+
+    sorted.forEach((e, idx) => {
+        if (idx < maxItems) {
+            labels.push(e[0]);
+            values.push(e[1]);
+        } else {
+            otherSum += e[1];
+        }
+    });
+
+    if (otherSum > 0) {
+        labels.push('อื่น ๆ');
+        values.push(otherSum);
+    }
+
+    if (opdInsChartInstance) opdInsChartInstance.destroy();
+
+    opdInsChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#94a3b8']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { boxWidth: 12 } }
+            }
+        }
+    });
+}
+
+function renderOpdGeoChart(data) {
+    const canvas = document.getElementById('opdGeoChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    const grouped = {};
+    data.forEach(row => {
+        const label = row.amphur || 'ไม่ระบุ';
+        grouped[label] = (grouped[label] || 0) + row.visit_count;
+    });
+
+    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]);
+    const labels = sorted.map(e => e[0]);
+    const values = sorted.map(e => e[1]);
+
+    if (opdGeoChartInstance) opdGeoChartInstance.destroy();
+
+    opdGeoChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'จำนวนครั้ง (ครั้ง)',
+                data: values,
+                backgroundColor: '#10b981',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { beginAtZero: true } }
+        }
+    });
+}
+
+function renderOpdTable(data) {
+    const tableBody = document.getElementById('opd-table-body');
+    if (!tableBody) return;
+
+    // Group for table
+    const tableGrouped = {};
+    data.forEach(row => {
+        const key = `${row.byear}_${row.amphur}_${row.district}_${row.ins_type}_${row.diag_type}`;
+        if (!tableGrouped[key]) {
+            tableGrouped[key] = {
+                byear: row.byear,
+                amphur: row.amphur,
+                district: row.district,
+                ins_type: row.ins_type,
+                diag_type: row.diag_type,
+                visit_count: 0,
+                sum_age: 0
+            };
+        }
+        tableGrouped[key].visit_count += row.visit_count;
+        tableGrouped[key].sum_age += row.sum_age;
+    });
+
+    let renderList = Object.values(tableGrouped);
+
+    // Apply search filter
+    if (opdTableSearchQuery) {
+        const q = opdTableSearchQuery.toLowerCase();
+        renderList = renderList.filter(item => 
+            item.amphur.toLowerCase().includes(q) ||
+            item.district.toLowerCase().includes(q) ||
+            item.ins_type.toLowerCase().includes(q)
+        );
+    }
+
+    // Apply sorting
+    renderList.sort((a, b) => {
+        let valA = a[opdSortColumn];
+        let valB = b[opdSortColumn];
+
+        if (opdSortColumn === 'avg_age') {
+            valA = a.visit_count > 0 ? (a.sum_age / a.visit_count) : 0;
+            valB = b.visit_count > 0 ? (b.sum_age / b.visit_count) : 0;
+        }
+
+        if (typeof valA === 'string') {
+            return opdSortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        } else {
+            return opdSortDirection === 'asc' ? valA - valB : valB - valA;
+        }
+    });
+
+    // Populate rows
+    tableBody.innerHTML = '';
+    
+    // Pagination / Limit to 100 rows for performance
+    const limit = 100;
+    const totalCount = renderList.length;
+    const listToRender = renderList.slice(0, limit);
+
+    const infoEl = document.getElementById('opd-table-info');
+    if (infoEl) {
+        if (totalCount > limit) {
+            infoEl.innerHTML = `แสดงผลลัพธ์ 1 - ${limit} จากทั้งหมด <strong>${totalCount.toLocaleString()}</strong> รายการ (กรุณาใช้การค้นหาเพื่อเจาะจงข้อมูล)`;
+        } else {
+            infoEl.innerHTML = `แสดงผลลัพธ์ทั้งหมด <strong>${totalCount.toLocaleString()}</strong> รายการ`;
+        }
+    }
+
+    if (listToRender.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                    <i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.5;"></i>
+                    ไม่พบข้อมูลผู้ป่วยนอกตามเงื่อนไขที่เลือก
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    const diagTypeLabels = {
+        '1': 'Principal Diag (หลัก)',
+        '2': 'Co-morbidity (ร่วม)',
+        '3': 'Complication (แทรกซ้อน)',
+        '4': 'Other (อื่น ๆ)',
+        '5': 'External Cause (สาเหตุภายนอก)'
+    };
+
+    listToRender.forEach(item => {
+        const avgAge = item.visit_count > 0 ? (item.sum_age / item.visit_count) : 0;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>ปี ${item.byear}</strong></td>
+            <td>${item.amphur}</td>
+            <td>${item.district}</td>
+            <td><span class="badge uc">${item.ins_type}</span></td>
+            <td><span class="badge sss">${diagTypeLabels[item.diag_type] || item.diag_type}</span></td>
+            <td class="numeric-cell" style="font-family: 'Inter'; font-weight: 600; color: var(--primary);">${item.visit_count.toLocaleString()}</td>
+            <td class="numeric-cell" style="font-family: 'Inter';">${avgAge.toFixed(1)}</td>
+        `;
+        tableBody.appendChild(tr);
+    });
+}
+
+function exportOpdTableToCsv() {
+    const filtered = getFilteredOpdData();
+    if (filtered.length === 0) return;
+
+    // Group for CSV
+    const csvGrouped = {};
+    filtered.forEach(row => {
+        const key = `${row.byear}_${row.amphur}_${row.district}_${row.ins_type}_${row.diag_type}`;
+        if (!csvGrouped[key]) {
+            csvGrouped[key] = {
+                byear: row.byear,
+                amphur: row.amphur,
+                district: row.district,
+                ins_type: row.ins_type,
+                diag_type: row.diag_type,
+                visit_count: 0,
+                sum_age: 0
+            };
+        }
+        csvGrouped[key].visit_count += row.visit_count;
+        csvGrouped[key].sum_age += row.sum_age;
+    });
+
+    const csvData = Object.values(csvGrouped);
+    
+    // Header
+    let csvContent = '\uFEFF'; // UTF-8 BOM
+    csvContent += 'ปีงบประมาณ,อำเภอ,ตำบล,สิทธิ์การรักษา,ประเภทการวินิจฉัย,จำนวนครั้งรับบริการ,อายุเฉลี่ย (ปี)\n';
+    
+    const diagTypeLabels = {
+        '1': 'Principal Diagnosis',
+        '2': 'Co-morbidity',
+        '3': 'Complication',
+        '4': 'Other',
+        '5': 'External Cause'
+    };
+
+    csvData.forEach(item => {
+        const avgAge = item.visit_count > 0 ? (item.sum_age / item.visit_count) : 0;
+        const diagLabel = diagTypeLabels[item.diag_type] || item.diag_type;
+        csvContent += `${item.byear},"${item.amphur}","${item.district}","${item.ins_type}","${diagLabel}",${item.visit_count},${avgAge.toFixed(2)}\n`;
+    });
+    
+    downloadCsv(csvContent, `opd_visits_summary_export_${Date.now()}.csv`);
+}
+
+function setupOpdEventListeners() {
+    // Dropdown filters
+    if (opdInsSelect) {
+        opdInsSelect.addEventListener('change', (e) => {
+            selectedOpdIns = e.target.value;
+            updateOpdDashboard();
+        });
+    }
+
+    if (opdAmphurSelect) {
+        opdAmphurSelect.addEventListener('change', (e) => {
+            selectedOpdAmphur = e.target.value;
+            updateOpdDashboard();
+        });
+    }
+
+    // Search table
+    if (opdTableSearchInput) {
+        opdTableSearchInput.addEventListener('input', (e) => {
+            opdTableSearchQuery = e.target.value;
+            renderOpdTable(getFilteredOpdData());
+        });
+    }
+
+    // Export button
+    if (btnOpdExportCsv) {
+        btnOpdExportCsv.addEventListener('click', exportOpdTableToCsv);
+    }
+
+    // Table sorting
+    const tableHeader = document.getElementById('opd-data-table');
+    if (tableHeader) {
+        tableHeader.querySelectorAll('th[data-column]').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.getAttribute('data-column');
+                if (opdSortColumn === col) {
+                    opdSortDirection = opdSortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    opdSortColumn = col;
+                    opdSortDirection = 'desc';
+                }
+
+                // Update UI header sorting icons
+                tableHeader.querySelectorAll('th[data-column]').forEach(el => {
+                    el.classList.remove('sort-asc', 'sort-desc');
+                });
+                th.classList.add(opdSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+
+                renderOpdTable(getFilteredOpdData());
+            });
+        });
+    }
+}
+
 
 
 

@@ -1,3 +1,5 @@
 node_modules/
 .DS_Store
-items_summary_partitioned.csv
+*.csv
+*/*.csv
+**/*.csv

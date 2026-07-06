@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 
 const app = express();
 
@@ -21,6 +22,209 @@ const port = (config.server && config.server.port) || 3000;
 let cmiCache = [];
 let transfersCache = [];
 let itemsCache = [];
+let opdCache = [];
+
+// Database Connection & Failover State
+let currentMode = 'csv'; // Initial mode is csv, will try db on startup
+let pool = null;
+
+function initializeDatabase() {
+    if (!config.database) {
+        console.warn('No database configuration found in config.json. Defaulting to CSV mode.');
+        currentMode = 'csv';
+        loadCSVDataSources();
+        return;
+    }
+
+    console.log(`[${new Date().toISOString()}] Initializing PostgreSQL connection pool...`);
+    pool = new Pool({
+        host: config.database.host,
+        port: config.database.port,
+        user: config.database.user,
+        password: config.database.password,
+        database: config.database.database,
+        connectionTimeoutMillis: config.database.connectionTimeoutMillis || 3000,
+        idleTimeoutMillis: config.database.idleTimeoutMillis || 30000
+    });
+
+    pool.on('error', (err) => {
+        console.error('Unexpected error on idle database client:', err.message);
+        if (currentMode === 'db') {
+            switchToCSV('DB idle client error: ' + err.message);
+        }
+    });
+
+    // Run initial connection test
+    testConnection();
+    // Start heartbeat monitor
+    startHeartbeat();
+}
+
+async function testConnection() {
+    try {
+        const client = await pool.connect();
+        client.release();
+        console.log(`[${new Date().toISOString()}] Successfully connected to PostgreSQL at ${config.database.host}`);
+        if (currentMode !== 'db') {
+            switchToDB();
+        }
+    } catch (err) {
+        console.error(`[${new Date().toISOString()}] Failed to connect to PostgreSQL:`, err.message);
+        if (currentMode !== 'csv') {
+            switchToCSV(err.message);
+        } else {
+            // Ensure CSV data is loaded if we're in CSV mode and caches are empty
+            if (cmiCache.length === 0) {
+                loadCSVDataSources();
+            }
+        }
+    }
+}
+
+function switchToCSV(reason) {
+    console.warn(`[${new Date().toISOString()}] SWITCHING TO CSV BACKUP MODE. Reason: ${reason}`);
+    currentMode = 'csv';
+    if (cmiCache.length === 0 || transfersCache.length === 0 || itemsCache.length === 0 || opdCache.length === 0) {
+        loadCSVDataSources();
+    }
+}
+
+function switchToDB() {
+    console.log(`[${new Date().toISOString()}] SWITCHING TO DATABASE MODE.`);
+    currentMode = 'db';
+}
+
+function startHeartbeat() {
+    const interval = (config.failover && config.failover.heartbeat_interval_ms) || 10000;
+    const dbTimeout = (config.failover && config.failover.db_timeout_ms) || 3000;
+    
+    setInterval(async () => {
+        if (!pool) return;
+        
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+                reject(new Error('Database query timed out'));
+            }, dbTimeout);
+        });
+        
+        const queryPromise = pool.query('SELECT 1');
+        
+        try {
+            await Promise.race([queryPromise, timeoutPromise]);
+            clearTimeout(timeoutId);
+            
+            if (currentMode !== 'db') {
+                console.log(`[${new Date().toISOString()}] Database is back online.`);
+                switchToDB();
+            }
+        } catch (err) {
+            clearTimeout(timeoutId);
+            console.error(`[${new Date().toISOString()}] Heartbeat check failed:`, err.message);
+            if (currentMode !== 'csv') {
+                switchToCSV('Heartbeat failure: ' + err.message);
+            }
+        }
+    }, interval);
+}
+
+async function queryDatabase(type) {
+    if (!pool) throw new Error('Database pool not initialized');
+    
+    const client = await pool.connect();
+    try {
+        if (type === 'cmi') {
+            const res = await client.query('SELECT * FROM ipd_cmi');
+            return res.rows.map(row => ({
+                insure_group: row.insure_group,
+                insure_desc: row.insure_desc ? row.insure_desc.trim() : '',
+                mdc: row.mdc ? row.mdc.trim().padStart(2, '0') : '',
+                mdc_desc: row.mdc_desc ? row.mdc_desc.trim() : '',
+                total: parseInt(row.total) || 0,
+                sum_adjrw: parseFloat(row.sum_adjrw) || 0,
+                average_adjrw: parseFloat(row.average_adjrw) || 0,
+                surgery_total: parseInt(row.surgery_total) || 0,
+                surgery_sum_adjrw: parseFloat(row.surgery_sum_adjrw) || 0,
+                med_total: parseInt(row.med_total) || 0,
+                med_sum_adjrw: parseFloat(row.med_sum_adjrw) || 0,
+                byear: parseInt(row.byear) || 0,
+                year: parseInt(row.year) || 0,
+                month: parseInt(row.month) || 0
+            })).filter(row => row.byear > 0 && row.total > 0 && row.mdc !== '' && row.insure_desc !== 'รวม');
+        } else if (type === 'transfers') {
+            const res = await client.query('SELECT * FROM fundtransfer');
+            return res.rows.map(row => {
+                const amount = parseFloat(row.amount) || 0;
+                const deduction = parseFloat(row.deduction) || 0;
+                let remain = parseFloat(row.remain) || 0;
+                
+                if (amount === 0 && deduction > 0 && remain > 0) {
+                    remain = -remain;
+                }
+                
+                return {
+                    no: row.no,
+                    transfer_date: row.transfer_date ? row.transfer_date.trim() : '',
+                    date: row.date ? row.date.trim() : '',
+                    month: row.month ? row.month.trim() : '',
+                    year: parseInt(row.year) || 0,
+                    sub_fund: row.sub_fund ? row.sub_fund.trim() : 'ไม่ระบุกองทุนย่อย',
+                    main_fund: row.main_fund ? row.main_fund.trim() : 'ไม่ระบุกองทุนหลัก',
+                    amount: amount,
+                    delay: parseFloat(row.delay) || 0,
+                    deduction: deduction,
+                    contract_guarantee: parseFloat(row.contract_guarantee) || 0,
+                    tax: parseFloat(row.tax) || 0,
+                    transfer_amount: remain,
+                    byear: parseInt(row.byear) || 0
+                };
+            }).filter(row => row.byear > 0 && row.main_fund !== '');
+        } else if (type === 'items') {
+            const res = await client.query('SELECT * FROM items_summary_aggregated');
+            return res.rows.map(row => ({
+                visit_type: row.visit_type ? row.visit_type.trim() : 'ไม่ระบุประเภทผู้ป่วย',
+                item_group: row.item_group ? row.item_group.trim() : 'ไม่ระบุกลุ่มบริการ',
+                item_common_name: row.item_common_name ? row.item_common_name.trim() : 'ไม่ระบุรายการบริการ',
+                total_quantity: parseInt(row.total_quantity) || 0,
+                total_price: parseFloat(row.total_price) || 0,
+                byear: parseInt(row.byear) || 0,
+                year: parseInt(row.year) || 0,
+                month: row.month ? row.month.toString().padStart(2, '0') : ''
+            })).filter(row => row.byear > 0 && row.item_group !== '');
+        } else if (type === 'opd') {
+            const res = await client.query(`
+                SELECT 
+                    byear, 
+                    year_visit, 
+                    month_visit, 
+                    sex, 
+                    amphur, 
+                    district, 
+                    ins_type, 
+                    diag_type, 
+                    COUNT(vn) as visit_count, 
+                    SUM(CASE WHEN age ~ '^[0-9\\.]+$' THEN CAST(age AS NUMERIC)::integer ELSE 0 END) as sum_age 
+                FROM opd_visit_partitioned 
+                GROUP BY byear, year_visit, month_visit, sex, amphur, district, ins_type, diag_type
+            `);
+            return res.rows.map(row => ({
+                byear: parseInt(row.byear) || 0,
+                year_visit: parseInt(row.year_visit) || 0,
+                month_visit: row.month_visit ? row.month_visit.toString().padStart(2, '0') : '',
+                sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
+                amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
+                district: row.district ? row.district.trim() : 'ไม่ระบุ',
+                ins_type: row.ins_type ? row.ins_type.trim() : 'ไม่ระบุ',
+                diag_type: row.diag_type ? row.diag_type.trim() : 'ไม่ระบุ',
+                visit_count: parseInt(row.visit_count) || 0,
+                sum_age: parseInt(row.sum_age) || 0
+            })).filter(row => row.byear > 0 && row.visit_count > 0);
+        }
+        return [];
+    } finally {
+        client.release();
+    }
+}
 
 // Custom CSV Parser helper functions
 function parseCSVLine(line) {
@@ -149,6 +353,24 @@ function loadCSVDataSources() {
     })).filter(row => row.byear > 0 && row.item_group !== '');
     console.log(`[${new Date().toISOString()}] Loaded ${itemsFilename}: ${itemsCache.length} rows`);
 
+    // 4. Load OPD Summary Data
+    const opdFilename = 'opd_visit_summary.csv';
+    const opdPath = path.join(__dirname, opdFilename);
+    const opdRaw = parseCSVFile(opdPath);
+    opdCache = opdRaw.map(row => ({
+        byear: parseInt(row.byear) || 0,
+        year_visit: parseInt(row.year_visit) || 0,
+        month_visit: row.month_visit ? row.month_visit.toString().padStart(2, '0') : '',
+        sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
+        amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
+        district: row.district ? row.district.trim() : 'ไม่ระบุ',
+        ins_type: row.ins_type ? row.ins_type.trim() : 'ไม่ระบุ',
+        diag_type: row.diag_type ? row.diag_type.trim() : 'ไม่ระบุ',
+        visit_count: parseInt(row.visit_count) || 0,
+        sum_age: parseInt(row.sum_age) || 0
+    })).filter(row => row.byear > 0 && row.visit_count > 0);
+    console.log(`[${new Date().toISOString()}] Loaded ${opdFilename}: ${opdCache.length} rows`);
+
     const duration = ((Date.now() - start) / 1000).toFixed(2);
     console.log(`[${new Date().toISOString()}] All data sources loaded into memory in ${duration}s`);
 }
@@ -169,19 +391,73 @@ app.use((req, res, next) => {
 // Serve static web portal files from the current directory
 app.use(express.static(path.join(__dirname, '.')));
 
-// API: Get CMI data from CSV cache
-app.get('/api/cmi', (req, res) => {
+// API: Get status of database connection
+app.get('/api/status', (req, res) => {
+    res.json({
+        mode: currentMode,
+        db_connected: currentMode === 'db',
+        host: config.database ? config.database.host : null
+    });
+});
+
+// API: Get CMI data
+app.get('/api/cmi', async (req, res) => {
+    if (currentMode === 'db') {
+        try {
+            const data = await queryDatabase('cmi');
+            res.json(data);
+            return;
+        } catch (err) {
+            console.error('Failed to fetch CMI from database, falling back to CSV:', err.message);
+            switchToCSV('Query error: ' + err.message);
+        }
+    }
     res.json(cmiCache);
 });
 
-// API: Get NHSO Fund Transfer data from CSV cache
-app.get('/api/transfers', (req, res) => {
+// API: Get NHSO Fund Transfer data
+app.get('/api/transfers', async (req, res) => {
+    if (currentMode === 'db') {
+        try {
+            const data = await queryDatabase('transfers');
+            res.json(data);
+            return;
+        } catch (err) {
+            console.error('Failed to fetch Transfers from database, falling back to CSV:', err.message);
+            switchToCSV('Query error: ' + err.message);
+        }
+    }
     res.json(transfersCache);
 });
 
-// API: Get Items Summary data from CSV cache
-app.get('/api/items', (req, res) => {
+// API: Get Items Summary data
+app.get('/api/items', async (req, res) => {
+    if (currentMode === 'db') {
+        try {
+            const data = await queryDatabase('items');
+            res.json(data);
+            return;
+        } catch (err) {
+            console.error('Failed to fetch Items from database, falling back to CSV:', err.message);
+            switchToCSV('Query error: ' + err.message);
+        }
+    }
     res.json(itemsCache);
+});
+
+// API: Get OPD Summary data
+app.get('/api/opd/summary', async (req, res) => {
+    if (currentMode === 'db') {
+        try {
+            const data = await queryDatabase('opd');
+            res.json(data);
+            return;
+        } catch (err) {
+            console.error('Failed to fetch OPD summary from database, falling back to CSV:', err.message);
+            switchToCSV('Query error: ' + err.message);
+        }
+    }
+    res.json(opdCache);
 });
 
 // Start Express server
@@ -189,9 +465,9 @@ app.listen(port, () => {
     console.log(`==================================================`);
     console.log(` Healthcare Portal Server running at:`);
     console.log(` http://localhost:${port}/index.html`);
-    console.log(` Data Sources: CSV Files (Local In-Memory Cache)`);
+    console.log(` Data Sources: PostgreSQL (Primary) / CSV (Fallback)`);
     console.log(`==================================================`);
     
-    // Load all data sources in memory on startup
-    loadCSVDataSources();
+    // Initialize Database and heartbeat monitor
+    initializeDatabase();
 });

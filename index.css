@@ -1407,3 +1407,184 @@ body.dark-mode .latest-data-badge {
     border-color: rgba(99, 102, 241, 0.25);
 }
 
+/* Connection Status Banner Styling */
+.status-banner {
+    width: 100%;
+    background: linear-gradient(135deg, #f59e0b, #d97706); /* Warm Amber Gradient */
+    color: #ffffff;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 100px;
+    opacity: 1;
+    overflow: hidden;
+    z-index: 100;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.status-banner.success {
+    background: linear-gradient(135deg, #10b981, #059669); /* Emerald Green Gradient */
+}
+
+.status-banner.hidden {
+    max-height: 0;
+    opacity: 0;
+    border-bottom: none;
+    pointer-events: none;
+}
+
+.status-banner-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.status-banner-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 550;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.status-banner-icon {
+    font-size: 1.1rem;
+    animation: pulse-warn 1.5s infinite;
+}
+
+.status-banner.success .status-banner-icon {
+    animation: none;
+}
+
+@keyframes pulse-warn {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.reconnect-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1rem;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.reconnect-refresh-btn:hover {
+    background-color: rgba(255, 255, 255, 0.35);
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: translateY(-1px);
+}
+
+.reconnect-refresh-btn:active {
+    transform: translateY(0);
+}
+
+.reconnect-refresh-btn.hidden {
+    display: none;
+}
+
+.reconnect-refresh-btn i {
+    transition: transform 0.4s ease;
+}
+
+.reconnect-refresh-btn:hover i {
+    transform: rotate(180deg);
+}
+
+/* Data Source Status Badge Styling */
+.data-source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    margin-right: 0.5rem;
+}
+
+.data-source-badge.db {
+    border-color: rgba(16, 185, 129, 0.3);
+    background-color: rgba(16, 185, 129, 0.05);
+    color: #059669;
+}
+
+body.dark-mode .data-source-badge.db {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: #34d399;
+}
+
+.data-source-badge.csv {
+    border-color: rgba(245, 158, 11, 0.3);
+    background-color: rgba(245, 158, 11, 0.05);
+    color: #d97706;
+}
+
+body.dark-mode .data-source-badge.csv {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #fbbf24;
+}
+
+.indicator-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #94a3b8; /* Slate gray by default */
+    transition: background-color 0.3s ease;
+    display: inline-block;
+}
+
+.data-source-badge.db .indicator-dot {
+    background-color: #10b981; /* Green */
+    animation: pulse-dot-green 2s infinite;
+}
+
+.data-source-badge.csv .indicator-dot {
+    background-color: #f59e0b; /* Amber */
+    animation: pulse-dot-amber 2s infinite;
+}
+
+@keyframes pulse-dot-green {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes pulse-dot-amber {
+    0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+    70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+/* OPD Dashboard Specific Styling */
+#opd-dashboard-content .kpi-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#opd-dashboard-content .kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+}
+
+
+

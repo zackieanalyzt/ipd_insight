@@ -42,14 +42,34 @@
             <button class="portal-tab-btn" data-tab="items">
                 <i class="fa-solid fa-file-invoice-dollar"></i> วิเคราะห์รายการบริการ
             </button>
+            <button class="portal-tab-btn" data-tab="opd">
+                <i class="fa-solid fa-hospital"></i> วิเคราะห์ผู้ป่วยนอก (OPD)
+            </button>
         </nav>
 
         <div class="header-actions">
+            <div id="data-source-badge" class="data-source-badge">
+                <span class="indicator-dot"></span>
+                <span id="data-source-text" class="source-text">ตรวจสอบสถานะ...</span>
+            </div>
             <button id="theme-toggle" class="theme-toggle-btn" title="เปลี่ยนโหมดสี">
                 <i class="fa-solid fa-moon"></i>
             </button>
         </div>
     </header>
+
+    <!-- Connection Status Banner -->
+    <div id="connection-status-banner" class="status-banner hidden">
+        <div class="status-banner-content">
+            <span class="status-banner-text">
+                <i class="fa-solid fa-triangle-exclamation status-banner-icon"></i>
+                <span id="status-banner-message">ขณะนี้ระบบกำลังใช้ข้อมูลสำรองจากไฟล์ .csv เนื่องจากหลุดการเชื่อมต่อจากฐานข้อมูลหลัก (ข้อมูลอาจจะไม่เป็นปัจจุบัน)</span>
+            </span>
+            <button id="btn-reconnect-refresh" class="reconnect-refresh-btn hidden">
+                <i class="fa-solid fa-arrows-rotate"></i> โหลดข้อมูลใหม่จาก Database
+            </button>
+        </div>
+    </div>
 
     <!-- Main Container -->
     <div class="dashboard-container">
@@ -219,6 +239,89 @@
                     <div class="select-wrapper">
                         <select id="items-visit-select" class="custom-select">
                             <option value="all">-- ทุกประเภทผู้ป่วย --</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard 4: OPD Summary Filters -->
+            <div id="opd-filters-container" class="sidebar-tab-filters">
+                <!-- Fiscal Year Filter -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-header">
+                        <h3>ปีงบประมาณ (byear)</h3>
+                        <div class="bulk-select-links">
+                            <span class="bulk-btn" onclick="bulkSelect('opd-year-filters', true)">ทั้งหมด</span>
+                            <span class="bulk-divider">|</span>
+                            <span class="bulk-btn" onclick="bulkSelect('opd-year-filters', false)">เคลียร์</span>
+                        </div>
+                    </div>
+                    <div id="opd-year-filters" class="checkbox-group">
+                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดปีงบประมาณ...</p>
+                    </div>
+                </div>
+
+                <!-- Month Filter -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-header">
+                        <h3>เดือนที่รับบริการ</h3>
+                        <div class="bulk-select-links">
+                            <span class="bulk-btn" onclick="bulkSelect('opd-month-filters', true)">ทั้งหมด</span>
+                            <span class="bulk-divider">|</span>
+                            <span class="bulk-btn" onclick="bulkSelect('opd-month-filters', false)">เคลียร์</span>
+                        </div>
+                    </div>
+                    <div id="opd-month-filters" class="month-checkbox-grid">
+                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเดือน...</p>
+                    </div>
+                </div>
+
+                <!-- Sex Filter -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-header">
+                        <h3>เพศ (sex)</h3>
+                        <div class="bulk-select-links">
+                            <span class="bulk-btn" onclick="bulkSelect('opd-sex-filters', true)">ทั้งหมด</span>
+                            <span class="bulk-divider">|</span>
+                            <span class="bulk-btn" onclick="bulkSelect('opd-sex-filters', false)">เคลียร์</span>
+                        </div>
+                    </div>
+                    <div id="opd-sex-filters" class="checkbox-group">
+                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเพศ...</p>
+                    </div>
+                </div>
+
+                <!-- Diag Type Filter -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-header">
+                        <h3>ประเภทการวินิจฉัย (diag_type)</h3>
+                        <div class="bulk-select-links">
+                            <span class="bulk-btn" onclick="bulkSelect('opd-diagtype-filters', true)">ทั้งหมด</span>
+                            <span class="bulk-divider">|</span>
+                            <span class="bulk-btn" onclick="bulkSelect('opd-diagtype-filters', false)">เคลียร์</span>
+                        </div>
+                    </div>
+                    <div id="opd-diagtype-filters" class="checkbox-group">
+                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดประเภทการวินิจฉัย...</p>
+                    </div>
+                </div>
+
+                <!-- Insurance Type Filter -->
+                <div class="sidebar-section">
+                    <h3>สิทธิ์การรักษา (ins_type)</h3>
+                    <div class="select-wrapper">
+                        <select id="opd-ins-select" class="custom-select">
+                            <option value="all">-- ทุกสิทธิ์การรักษา --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Amphur Filter -->
+                <div class="sidebar-section">
+                    <h3>อำเภอ (amphur)</h3>
+                    <div class="select-wrapper">
+                        <select id="opd-amphur-select" class="custom-select">
+                            <option value="all">-- ทุกอำเภอ --</option>
                         </select>
                     </div>
                 </div>
@@ -756,6 +859,167 @@
                 </div>
             </div>
 
+            <!-- DASHBOARD 4: OPD VISITS SUMMARY CONTENT -->
+            <div id="opd-dashboard-content" class="portal-tab-content">
+                <!-- KPI Cards -->
+                <div class="kpi-container">
+                    <!-- Total Visits -->
+                    <div class="kpi-card" id="kpi-opd-visits">
+                        <div class="kpi-header">
+                            <span>จำนวนครั้งการรับบริการ OPD (Total Visits)</span>
+                            <i class="fa-solid fa-notes-medical kpi-icon" style="color: var(--primary);"></i>
+                        </div>
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+                            <div class="kpi-value" id="val-opd-total-visits" style="margin: 0.5rem 0 0 0;">0</div>
+                        </div>
+                        <div class="kpi-meta">
+                            <i class="fa-solid fa-calculator"></i>
+                            <span>ครั้ง / การรับบริการผู้ป่วยนอก</span>
+                        </div>
+                    </div>
+
+                    <!-- Average Patient Age -->
+                    <div class="kpi-card" id="kpi-opd-age">
+                        <div class="kpi-header">
+                            <span>อายุเฉลี่ยผู้ป่วย (Average Age)</span>
+                            <i class="fa-solid fa-user-clock kpi-icon" style="color: #22c55e;"></i>
+                        </div>
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+                            <div class="kpi-value" id="val-opd-avg-age" style="margin: 0.5rem 0 0 0;">0.00</div>
+                        </div>
+                        <div class="kpi-meta">
+                            <i class="fa-solid fa-hourglass-half"></i>
+                            <span>ปี</span>
+                        </div>
+                    </div>
+
+                    <!-- Female Ratio -->
+                    <div class="kpi-card" id="kpi-opd-female">
+                        <div class="kpi-header">
+                            <span>สัดส่วนผู้หญิง (Female Visits)</span>
+                            <i class="fa-solid fa-venus kpi-icon" style="color: #ec4899;"></i>
+                        </div>
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+                            <div class="kpi-value" id="val-opd-female-pct" style="color: #ec4899; margin: 0.5rem 0 0 0;">0.0%</div>
+                        </div>
+                        <div class="kpi-meta">
+                            <i class="fa-solid fa-venus-mars"></i>
+                            <span id="val-opd-female-count">0 ครั้ง</span>
+                        </div>
+                    </div>
+
+                    <!-- Male Ratio -->
+                    <div class="kpi-card" id="kpi-opd-male">
+                        <div class="kpi-header">
+                            <span>สัดส่วนผู้ชาย (Male Visits)</span>
+                            <i class="fa-solid fa-mars kpi-icon" style="color: #3b82f6;"></i>
+                        </div>
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+                            <div class="kpi-value" id="val-opd-male-pct" style="color: #3b82f6; margin: 0.5rem 0 0 0;">0.0%</div>
+                        </div>
+                        <div class="kpi-meta">
+                            <i class="fa-solid fa-venus-mars"></i>
+                            <span id="val-opd-male-count">0 ครั้ง</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Double Charts Grid Layout 1 -->
+                <div class="transfer-charts-grid" style="margin-top: 1.5rem;">
+                    <!-- OPD Monthly Trend Line Chart -->
+                    <div class="visual-container">
+                        <div class="panel-header">
+                            <div class="panel-title">
+                                <i class="fa-solid fa-chart-line" style="color: var(--primary);"></i>
+                                <span>แนวโน้มการรับบริการผู้ป่วยนอกรายเดือน (OPD Monthly Visit Trend)</span>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="opdTrendChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- OPD Diag Type Bar Chart -->
+                    <div class="visual-container">
+                        <div class="panel-header">
+                            <div class="panel-title">
+                                <i class="fa-solid fa-chart-bar" style="color: var(--primary);"></i>
+                                <span>สัดส่วนการให้บริการแยกตามประเภทการวินิจฉัย (diag_type)</span>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="opdDiagTypeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Double Charts Grid Layout 2 -->
+                <div class="transfer-charts-grid" style="margin-top: 1.5rem;">
+                    <!-- OPD Insurance Type Doughnut Chart -->
+                    <div class="visual-container">
+                        <div class="panel-header">
+                            <div class="panel-title">
+                                <i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i>
+                                <span>สิทธิ์การรักษาของผู้รับบริการผู้ป่วยนอก (ins_type)</span>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="opdInsChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- OPD Geographic Bar Chart -->
+                    <div class="visual-container">
+                        <div class="panel-header">
+                            <div class="panel-title">
+                                <i class="fa-solid fa-map-location-dot" style="color: var(--primary);"></i>
+                                <span>สัดส่วนผู้รับบริการแยกตามอำเภอ (amphur)</span>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="opdGeoChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed OPD Table Section -->
+                <div class="details-container" style="margin-top: 1.5rem;">
+                    <div class="table-header">
+                        <div class="panel-title">
+                            <i class="fa-solid fa-table"></i>
+                            <span>ตารางแสดงข้อมูลสรุปผู้ป่วยนอกแยกตามอำเภอและตำบล</span>
+                        </div>
+                        <div class="search-input-wrapper">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="opd-table-search" class="search-input" placeholder="ค้นหาตามตำบล/อำเภอ/สิทธิ์...">
+                        </div>
+                        <button id="btn-opd-export-csv" class="btn">
+                            <i class="fa-solid fa-file-csv"></i> ส่งออกข้อมูลเป็น CSV
+                        </button>
+                    </div>
+                    
+                    <!-- Table Wrapper -->
+                    <div class="table-wrapper">
+                        <table id="opd-data-table">
+                            <thead>
+                                <tr>
+                                    <th data-column="byear">ปีงบประมาณ <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="amphur">อำเภอ <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="district">ตำบล <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="ins_type">สิทธิ์การรักษา <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="diag_type">ประเภทการวินิจฉัย <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="visit_count" class="numeric-cell">จำนวนครั้งรับบริการ <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="avg_age" class="numeric-cell">อายุเฉลี่ย (ปี) <i class="fa-solid fa-sort"></i></th>
+                                </tr>
+                            </thead>
+                            <tbody id="opd-table-body">
+                                <!-- Javascript will populate rows here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="opd-table-info" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; margin-top: 0.5rem;"></div>
+                </div>
+            </div>
 
         </main>
     </div>
