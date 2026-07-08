@@ -167,7 +167,8 @@ aside.sidebar {
     box-shadow: 4px 0 10px rgba(0, 0, 0, 0.05);
     z-index: 90;
     overflow: hidden;
-    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    border-right: 1px solid var(--border-color);
 }
 
 aside.sidebar.resizing {
@@ -176,7 +177,7 @@ aside.sidebar.resizing {
 
 .sidebar-inner {
     width: 100%;
-    min-width: 320px; /* Locked width to prevent contents squishing during collapse/resize */
+    min-width: 280px;
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
@@ -196,14 +197,14 @@ aside.sidebar.resizing {
     position: relative;
     user-select: none;
     z-index: 95;
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s ease, opacity 0.3s ease;
     flex-shrink: 0;
-    margin-right: -8px; /* overlap with main content border */
+    margin-right: -8px;
 }
 
 .sidebar-resizer:hover,
 .sidebar-resizer.dragging {
-    background-color: rgba(99, 102, 241, 0.15); /* Subtle primary tint */
+    background-color: rgba(99, 102, 241, 0.15);
 }
 
 body.dark-mode .sidebar-resizer:hover,
@@ -229,7 +230,7 @@ body.dark-mode .sidebar-resizer.dragging {
     height: 60px;
 }
 
-/* Sidebar Collapsed Styles */
+/* Sidebar Collapsed Styles — clean collapse with smooth main-content shift */
 body.sidebar-collapsed {
     --sidebar-width: 0px !important;
 }
@@ -237,10 +238,44 @@ body.sidebar-collapsed {
 body.sidebar-collapsed aside.sidebar {
     opacity: 0;
     pointer-events: none;
+    border-right: none;
 }
 
 body.sidebar-collapsed .sidebar-resizer {
-    display: none;
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+}
+
+/* Subtle hover zone on left edge when collapsed — shows a thin primary line */
+body.sidebar-collapsed .dashboard-container::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: transparent;
+    z-index: 80;
+    transition: background 0.3s ease;
+    pointer-events: none;
+}
+
+body.sidebar-collapsed .dashboard-container:hover::before {
+    background: linear-gradient(to bottom, transparent 20%, var(--primary) 50%, transparent 80%);
+}
+
+/* Main content area — smooth transition when sidebar resizes */
+.main-content {
+    flex: 1;
+    padding: 1.5rem;
+    overflow-y: auto;
+    min-width: 0;
+    transition: margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.sidebar-collapsed .main-content {
+    margin-left: 0;
 }
 
 /* Sidebar Toggle Button in Header */
@@ -1584,6 +1619,47 @@ body.dark-mode .data-source-badge.csv {
 #opd-dashboard-content .kpi-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* Diag Code Autocomplete */
+.autocomplete-list {
+    position: relative;
+    z-index: 100;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    max-height: 150px;
+    overflow-y: auto;
+    margin-top: 0.25rem;
+}
+
+.autocomplete-list div:hover {
+    background: var(--bg-hover, rgba(0,0,0,0.05));
+}
+
+body.dark-mode .autocomplete-list {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+body.dark-mode .autocomplete-list div:hover {
+    background: #334155;
+}
+
+/* Selected diag code tags */
+.selected-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+    min-height: 0;
+}
+
+.selected-tags span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
 }
 
 

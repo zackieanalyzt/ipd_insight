@@ -306,6 +306,19 @@
                     </div>
                 </div>
 
+                <!-- Diag Code Search Filter (NEW) -->
+                <div class="sidebar-section">
+                    <h3>รหัสโรค (diag_code)</h3>
+                    <div class="search-input-wrapper" style="max-width: 100%;">
+                        <i class="fa-solid fa-magnifying-glass" style="color: var(--text-sidebar-muted);"></i>
+                        <input type="text" id="opd-diag-search" class="sidebar-input" style="padding-left: 2.2rem;" placeholder="พิมพ์รหัสโรคเช่น I10, E119...">
+                    </div>
+                    <div id="opd-diag-selected" class="selected-tags" style="display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; min-height: 0;">
+                        <!-- Selected diag tags will appear here -->
+                    </div>
+                    <div id="opd-diag-suggestions" class="autocomplete-list" style="display: none; max-height: 150px; overflow-y: auto; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; margin-top: 0.25rem;"></div>
+                </div>
+
                 <!-- Insurance Type Filter -->
                 <div class="sidebar-section">
                     <h3>สิทธิ์การรักษา (ins_type)</h3>
@@ -316,12 +329,32 @@
                     </div>
                 </div>
 
-                <!-- Amphur Filter -->
+                <!-- Province Filter (NEW) -->
+                <div class="sidebar-section">
+                    <h3>จังหวัด (changwat)</h3>
+                    <div class="select-wrapper">
+                        <select id="opd-changwat-select" class="custom-select">
+                            <option value="all">-- ทุกจังหวัด --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Amphur Filter (updated: cascading from changwat) -->
                 <div class="sidebar-section">
                     <h3>อำเภอ (amphur)</h3>
                     <div class="select-wrapper">
                         <select id="opd-amphur-select" class="custom-select">
                             <option value="all">-- ทุกอำเภอ --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- District Filter (NEW: cascading from amphur) -->
+                <div class="sidebar-section">
+                    <h3>ตำบล (district)</h3>
+                    <div class="select-wrapper">
+                        <select id="opd-district-select" class="custom-select">
+                            <option value="all">-- ทุกตำบล --</option>
                         </select>
                     </div>
                 </div>
@@ -924,14 +957,15 @@
                     </div>
                 </div>
 
-                <!-- Double Charts Grid Layout 1 -->
+                <!-- OPD Charts Grid Layout 1 -->
                 <div class="transfer-charts-grid" style="margin-top: 1.5rem;">
                     <!-- OPD Monthly Trend Line Chart -->
                     <div class="visual-container">
                         <div class="panel-header">
                             <div class="panel-title">
                                 <i class="fa-solid fa-chart-line" style="color: var(--primary);"></i>
-                                <span>แนวโน้มการรับบริการผู้ป่วยนอกรายเดือน (OPD Monthly Visit Trend)</span>
+                                <span>แนวโน้มจำนวนผู้ป่วยนอกรายเดือน (Monthly Visit Trend)</span>
+                                <span id="opd-trend-badge" class="latest-data-badge"></span>
                             </div>
                         </div>
                         <div class="chart-wrapper">
@@ -939,41 +973,56 @@
                         </div>
                     </div>
 
-                    <!-- OPD Diag Type Bar Chart -->
+                    <!-- Top Diagnosis Codes Bar Chart -->
                     <div class="visual-container">
                         <div class="panel-header">
                             <div class="panel-title">
-                                <i class="fa-solid fa-chart-bar" style="color: var(--primary);"></i>
-                                <span>สัดส่วนการให้บริการแยกตามประเภทการวินิจฉัย (diag_type)</span>
+                                <i class="fa-solid fa-disease" style="color: var(--primary);"></i>
+                                <span>รหัสโรค 10 อันดับแรก (Top Diagnosis Codes)</span>
                             </div>
                         </div>
                         <div class="chart-wrapper">
-                            <canvas id="opdDiagTypeChart"></canvas>
+                            <canvas id="opdDiagChart"></canvas>
                         </div>
                     </div>
                 </div>
 
-                <!-- Double Charts Grid Layout 2 -->
+                <!-- OPD Charts Grid Layout 2 -->
                 <div class="transfer-charts-grid" style="margin-top: 1.5rem;">
-                    <!-- OPD Insurance Type Doughnut Chart -->
+                    <!-- Age Group Distribution Chart -->
                     <div class="visual-container">
                         <div class="panel-header">
                             <div class="panel-title">
                                 <i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i>
-                                <span>สิทธิ์การรักษาของผู้รับบริการผู้ป่วยนอก (ins_type)</span>
+                                <span>สัดส่วนผู้ป่วยตามกลุ่มอายุ (Age Group Distribution)</span>
                             </div>
                         </div>
                         <div class="chart-wrapper">
-                            <canvas id="opdInsChart"></canvas>
+                            <canvas id="opdAgeChart"></canvas>
                         </div>
                     </div>
 
-                    <!-- OPD Geographic Bar Chart -->
+                    <!-- Top Departments Bar Chart -->
                     <div class="visual-container">
                         <div class="panel-header">
                             <div class="panel-title">
+                                <i class="fa-solid fa-building" style="color: var(--primary);"></i>
+                                <span>แผนกที่ใช้บริการมากที่สุด (Top Departments)</span>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="opdDeptChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Geographic Distribution (Full Width) -->
+                <div class="transfer-charts-grid" style="margin-top: 1.5rem;">
+                    <div class="visual-container full-width">
+                        <div class="panel-header">
+                            <div class="panel-title">
                                 <i class="fa-solid fa-map-location-dot" style="color: var(--primary);"></i>
-                                <span>สัดส่วนผู้รับบริการแยกตามอำเภอ (amphur)</span>
+                                <span>จำนวนผู้ป่วยแยกตามจังหวัดและอำเภอ (Geographic Distribution)</span>
                             </div>
                         </div>
                         <div class="chart-wrapper">
@@ -987,11 +1036,11 @@
                     <div class="table-header">
                         <div class="panel-title">
                             <i class="fa-solid fa-table"></i>
-                            <span>ตารางแสดงข้อมูลสรุปผู้ป่วยนอกแยกตามอำเภอและตำบล</span>
+                            <span>ตารางแสดงข้อมูลสรุปผู้ป่วยนอก</span>
                         </div>
                         <div class="search-input-wrapper">
                             <i class="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" id="opd-table-search" class="search-input" placeholder="ค้นหาตามตำบล/อำเภอ/สิทธิ์...">
+                            <input type="text" id="opd-table-search" class="search-input" placeholder="ค้นหา...">
                         </div>
                         <button id="btn-opd-export-csv" class="btn">
                             <i class="fa-solid fa-file-csv"></i> ส่งออกข้อมูลเป็น CSV
@@ -1003,13 +1052,16 @@
                         <table id="opd-data-table">
                             <thead>
                                 <tr>
-                                    <th data-column="byear">ปีงบประมาณ <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="byear">ปีงบฯ <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="changwat">จังหวัด <i class="fa-solid fa-sort"></i></th>
                                     <th data-column="amphur">อำเภอ <i class="fa-solid fa-sort"></i></th>
                                     <th data-column="district">ตำบล <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="ins_type">สิทธิ์การรักษา <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="diag_type">ประเภทการวินิจฉัย <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="visit_count" class="numeric-cell">จำนวนครั้งรับบริการ <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="avg_age" class="numeric-cell">อายุเฉลี่ย (ปี) <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="sex">เพศ <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="diag_code">รหัสโรค <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="diag_type">ประเภทวินิจฉัย <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="department">แผนก <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="age_group">กลุ่มอายุ <i class="fa-solid fa-sort"></i></th>
+                                    <th data-column="visit_count" class="numeric-cell">จำนวนครั้ง <i class="fa-solid fa-sort"></i></th>
                                 </tr>
                             </thead>
                             <tbody id="opd-table-body">

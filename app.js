@@ -45,15 +45,24 @@ let statusPollInterval = null;
 
 // Dashboard 4: OPD Visits State
 let opdRawData = [];
+let opdDiagCache = [];
+let opdDeptCache = [];
+let opdAgeCache = [];
+let opdLocCache = [];
 let selectedOpdYears = new Set();
 let selectedOpdMonths = new Set();
 let selectedOpdSex = new Set();
 let selectedOpdDiagTypes = new Set();
+let selectedOpdDiagCodes = new Set();
 let selectedOpdIns = 'all';
+let selectedOpdChangwat = 'all';
 let selectedOpdAmphur = 'all';
+let selectedOpdDistrict = 'all';
+let opdDiagSearchQuery = '';
 let opdTrendChartInstance = null;
-let opdDiagTypeChartInstance = null;
-let opdInsChartInstance = null;
+let opdDiagChartInstance = null;
+let opdAgeChartInstance = null;
+let opdDeptChartInstance = null;
 let opdGeoChartInstance = null;
 let opdSortColumn = 'visit_count';
 let opdSortDirection = 'desc';
@@ -154,8 +163,13 @@ const opdYearFiltersContainer = document.getElementById('opd-year-filters');
 const opdMonthFiltersContainer = document.getElementById('opd-month-filters');
 const opdSexFiltersContainer = document.getElementById('opd-sex-filters');
 const opdDiagTypeFiltersContainer = document.getElementById('opd-diagtype-filters');
+const opdDiagSearch = document.getElementById('opd-diag-search');
+const opdDiagSelected = document.getElementById('opd-diag-selected');
+const opdDiagSuggestions = document.getElementById('opd-diag-suggestions');
 const opdInsSelect = document.getElementById('opd-ins-select');
+const opdChangwatSelect = document.getElementById('opd-changwat-select');
 const opdAmphurSelect = document.getElementById('opd-amphur-select');
+const opdDistrictSelect = document.getElementById('opd-district-select');
 const opdTableSearchInput = document.getElementById('opd-table-search');
 const opdTableBody = document.getElementById('opd-table-body');
 const btnOpdExportCsv = document.getElementById('btn-opd-export-csv');
@@ -185,20 +199,45 @@ function resizeAllCharts() {
     if (fundTrendChartInstance) fundTrendChartInstance.resize();
     if (itemsGroupChartInstance) itemsGroupChartInstance.resize();
     if (itemsTrendChartInstance) itemsTrendChartInstance.resize();
+    if (opdTrendChartInstance) opdTrendChartInstance.resize();
+    if (opdDiagChartInstance) opdDiagChartInstance.resize();
+    if (opdAgeChartInstance) opdAgeChartInstance.resize();
+    if (opdDeptChartInstance) opdDeptChartInstance.resize();
+    if (opdGeoChartInstance) opdGeoChartInstance.resize();
 }
 
 // Setup event listeners for tab switching, themes, sorting, searching
 function setupEventListeners() {
-    // Sidebar Toggle Button
+    // Sidebar Toggle Button — improved expand/collapse with icon & tooltip swap
     if (sidebarToggleBtn && sidebarElement) {
+        // Restore icon state on page load
+        const savedCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+        if (savedCollapsed) {
+            sidebarToggleBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+            sidebarToggleBtn.title = 'แสดงแถบตัวกรอง';
+        } else {
+            sidebarToggleBtn.innerHTML = '<i class="fa-solid fa-bars"></i>';
+            sidebarToggleBtn.title = 'ซ่อนแถบตัวกรอง';
+        }
+
         sidebarToggleBtn.addEventListener('click', () => {
             const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
             localStorage.setItem('sidebar-collapsed', isCollapsed);
-            setTimeout(resizeAllCharts, 310); // Match transition duration (300ms) + small buffer
+            
+            // Swap icon and tooltip
+            if (isCollapsed) {
+                sidebarToggleBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+                sidebarToggleBtn.title = 'แสดงแถบตัวกรอง';
+            } else {
+                sidebarToggleBtn.innerHTML = '<i class="fa-solid fa-bars"></i>';
+                sidebarToggleBtn.title = 'ซ่อนแถบตัวกรอง';
+            }
+            
+            setTimeout(resizeAllCharts, 310);
         });
     }
 
-    // Sidebar Resizer (Drag to resize)
+    // Sidebar Resizer (Drag to resize) — improved with collapse-on-dblclick
     if (sidebarResizer && sidebarElement) {
         const onMouseMove = (e) => {
             const containerRect = document.querySelector('.dashboard-container').getBoundingClientRect();
@@ -245,11 +284,21 @@ function setupEventListeners() {
         sidebarResizer.addEventListener('mousedown', startDrag);
         sidebarResizer.addEventListener('touchstart', startDrag, { passive: true });
 
-        // Double click to reset to default width (320px)
+        // Double click to toggle collapse/expand (expand/contract)
         sidebarResizer.addEventListener('dblclick', () => {
-            document.documentElement.style.setProperty('--sidebar-width', '320px');
-            localStorage.setItem('sidebar-width', '320px');
-            setTimeout(resizeAllCharts, 50);
+            const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('sidebar-collapsed', isCollapsed);
+            // Also update toggle button icon
+            if (sidebarToggleBtn) {
+                if (isCollapsed) {
+                    sidebarToggleBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+                    sidebarToggleBtn.title = 'แสดงแถบตัวกรอง';
+                } else {
+                    sidebarToggleBtn.innerHTML = '<i class="fa-solid fa-bars"></i>';
+                    sidebarToggleBtn.title = 'ซ่อนแถบตัวกรอง';
+                }
+            }
+            setTimeout(resizeAllCharts, 310);
         });
     }
 
@@ -553,8 +602,15 @@ function resetActiveTabFilters() {
 
         opdInsSelect.value = 'all';
         selectedOpdIns = 'all';
+        opdChangwatSelect.value = 'all';
+        selectedOpdChangwat = 'all';
         opdAmphurSelect.value = 'all';
         selectedOpdAmphur = 'all';
+        opdDistrictSelect.value = 'all';
+        selectedOpdDistrict = 'all';
+        if (opdDiagSearch) opdDiagSearch.value = '';
+        selectedOpdDiagCodes.clear();
+        if (opdDiagSelected) opdDiagSelected.innerHTML = '';
         opdTableSearchInput.value = '';
         opdTableSearchQuery = '';
         updateOpdDashboard();
@@ -568,9 +624,14 @@ function loadAllData() {
     let transferLoaded = false;
     let itemsLoaded = false;
     let opdLoaded = false;
+    let opdDiagLoaded = false;
+    let opdDeptLoaded = false;
+    let opdAgeLoaded = false;
+    let opdLocLoaded = false;
 
     function checkAllLoaded() {
-        if (cmiLoaded && transferLoaded && itemsLoaded && opdLoaded) {
+        if (cmiLoaded && transferLoaded && itemsLoaded && opdLoaded &&
+            opdDiagLoaded && opdDeptLoaded && opdAgeLoaded && opdLocLoaded) {
             onAllDataReady();
         }
     }
@@ -656,6 +717,74 @@ function loadAllData() {
         .catch(err => {
             console.error('Error loading OPD data:', err);
             opdLoaded = true;
+            checkAllLoaded();
+        });
+
+    // Fetch OPD Diag Summary data
+    fetch('api/opd/diag-summary')
+        .then(res => {
+            if (!res.ok) throw new Error('Failed to load OPD diag data');
+            return res.json();
+        })
+        .then(data => {
+            opdDiagCache = data;
+            opdDiagLoaded = true;
+            checkAllLoaded();
+        })
+        .catch(err => {
+            console.error('Error loading OPD diag data:', err);
+            opdDiagLoaded = true;
+            checkAllLoaded();
+        });
+
+    // Fetch OPD Department Summary data
+    fetch('api/opd/dept-summary')
+        .then(res => {
+            if (!res.ok) throw new Error('Failed to load OPD dept data');
+            return res.json();
+        })
+        .then(data => {
+            opdDeptCache = data;
+            opdDeptLoaded = true;
+            checkAllLoaded();
+        })
+        .catch(err => {
+            console.error('Error loading OPD dept data:', err);
+            opdDeptLoaded = true;
+            checkAllLoaded();
+        });
+
+    // Fetch OPD Age Group Summary data
+    fetch('api/opd/age-summary')
+        .then(res => {
+            if (!res.ok) throw new Error('Failed to load OPD age data');
+            return res.json();
+        })
+        .then(data => {
+            opdAgeCache = data;
+            opdAgeLoaded = true;
+            checkAllLoaded();
+        })
+        .catch(err => {
+            console.error('Error loading OPD age data:', err);
+            opdAgeLoaded = true;
+            checkAllLoaded();
+        });
+
+    // Fetch OPD Location Summary data
+    fetch('api/opd/locations')
+        .then(res => {
+            if (!res.ok) throw new Error('Failed to load OPD location data');
+            return res.json();
+        })
+        .then(data => {
+            opdLocCache = data;
+            opdLocLoaded = true;
+            checkAllLoaded();
+        })
+        .catch(err => {
+            console.error('Error loading OPD location data:', err);
+            opdLocLoaded = true;
             checkAllLoaded();
         });
 }
@@ -2820,8 +2949,20 @@ function exportItemsTableToCsv() {
 }
 
 // -----------------------------------------------------------------------------
-// DASHBOARD 4: OPD VISITS LOGIC
+// DASHBOARD 4: OPD VISITS LOGIC — วิเคราะห์ผู้ป่วยนอก
 // -----------------------------------------------------------------------------
+
+// Diag type label mapping
+const opdDiagTypeLabels = {
+    '1': 'Principal Diag (วินิจฉัยหลัก)',
+    '2': 'Co-morbidity (โรคร่วม)',
+    '3': 'External Cause (สาเหตุภายนอก)',
+    '4': 'Other (วินิจฉัยอื่น)',
+    '5': 'Procedure (หัตถการ)'
+};
+
+// Age group order for sorting
+const ageGroupOrder = ['0-14 ปี', '15-29 ปี', '30-44 ปี', '45-59 ปี', '60-74 ปี', '75+ ปี', 'ไม่ระบุ'];
 
 function initializeOpdFilters() {
     // 1. Years
@@ -2863,13 +3004,8 @@ function initializeOpdFilters() {
         checkbox.value = m;
         checkbox.checked = true;
         checkbox.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                selectedOpdMonths.add(m);
-                label.classList.add('checked');
-            } else {
-                selectedOpdMonths.delete(m);
-                label.classList.remove('checked');
-            }
+            if (e.target.checked) { selectedOpdMonths.add(m); label.classList.add('checked'); }
+            else { selectedOpdMonths.delete(m); label.classList.remove('checked'); }
             updateOpdDashboard();
         });
         label.appendChild(checkbox);
@@ -2898,14 +3034,7 @@ function initializeOpdFilters() {
         opdSexFiltersContainer.appendChild(label);
     });
 
-    // 4. Diag Type (ประเภทการวินิจฉัย)
-    const diagTypeLabels = {
-        '1': 'Principal Diag (วินิจฉัยหลัก)',
-        '2': 'Co-morbidity (ร่วม)',
-        '3': 'Complication (แทรกซ้อน)',
-        '4': 'Other (อื่น ๆ)',
-        '5': 'External Cause (สาเหตุภายนอก)'
-    };
+    // 4. Diag Type
     const uniqueDiagTypes = [...new Set(opdRawData.map(row => row.diag_type))].sort();
     selectedOpdDiagTypes = new Set(uniqueDiagTypes);
     opdDiagTypeFiltersContainer.innerHTML = '';
@@ -2922,12 +3051,25 @@ function initializeOpdFilters() {
             updateOpdDashboard();
         });
         label.appendChild(checkbox);
-        const text = diagTypeLabels[dt] || `ประเภท ${dt}`;
-        label.appendChild(document.createTextNode(text));
+        label.appendChild(document.createTextNode(opdDiagTypeLabels[dt] || `ประเภท ${dt}`));
         opdDiagTypeFiltersContainer.appendChild(label);
     });
 
-    // 5. Insurance Type (ins_type) Dropdown
+    // 5. Diag Code — Search + Tag selection (use diag cache)
+    if (opdDiagSearch) {
+        opdDiagSearch.addEventListener('input', (e) => {
+            opdDiagSearchQuery = e.target.value.trim().toUpperCase();
+            renderDiagSuggestions();
+        });
+        opdDiagSearch.addEventListener('blur', () => {
+            setTimeout(() => { if (opdDiagSuggestions) opdDiagSuggestions.style.display = 'none'; }, 200);
+        });
+        opdDiagSearch.addEventListener('focus', () => {
+            if (opdDiagSearchQuery) renderDiagSuggestions();
+        });
+    }
+
+    // 6. Insurance Type
     const uniqueIns = [...new Set(opdRawData.map(row => row.ins_type))].sort();
     opdInsSelect.innerHTML = '<option value="all">-- ทุกสิทธิ์การรักษา --</option>';
     uniqueIns.forEach(ins => {
@@ -2938,8 +3080,19 @@ function initializeOpdFilters() {
         opdInsSelect.appendChild(opt);
     });
 
-    // 6. Amphur Dropdown
-    const uniqueAmphurs = [...new Set(opdRawData.map(row => row.amphur))].sort();
+    // 7. Changwat (Province) — from location cache
+    const uniqueChangwats = [...new Set(opdLocCache.map(row => row.changwat))].sort();
+    opdChangwatSelect.innerHTML = '<option value="all">-- ทุกจังหวัด --</option>';
+    uniqueChangwats.forEach(cw => {
+        if (!cw) return;
+        const opt = document.createElement('option');
+        opt.value = cw;
+        opt.innerText = cw;
+        opdChangwatSelect.appendChild(opt);
+    });
+
+    // 8. Amphur — initially all
+    const uniqueAmphurs = [...new Set(opdLocCache.map(row => row.amphur))].sort();
     opdAmphurSelect.innerHTML = '<option value="all">-- ทุกอำเภอ --</option>';
     uniqueAmphurs.forEach(amp => {
         if (!amp) return;
@@ -2948,8 +3101,121 @@ function initializeOpdFilters() {
         opt.innerText = amp;
         opdAmphurSelect.appendChild(opt);
     });
+
+    // 9. District — initially all
+    const uniqueDistricts = [...new Set(opdLocCache.map(row => row.district))].sort();
+    opdDistrictSelect.innerHTML = '<option value="all">-- ทุกตำบล --</option>';
+    uniqueDistricts.forEach(dis => {
+        if (!dis) return;
+        const opt = document.createElement('option');
+        opt.value = dis;
+        opt.innerText = dis;
+        opdDistrictSelect.appendChild(opt);
+    });
 }
 
+// ---- Diag Code auto-complete ----
+function renderDiagSuggestions() {
+    if (!opdDiagSuggestions || !opdDiagSearchQuery || opdDiagSearchQuery.length < 1) {
+        if (opdDiagSuggestions) opdDiagSuggestions.style.display = 'none';
+        return;
+    }
+    const q = opdDiagSearchQuery.toUpperCase();
+    const allCodes = [...new Set(opdDiagCache.map(r => r.diag_code))].filter(c => c && c !== 'ไม่ระบุ');
+    const matches = allCodes.filter(c => c.includes(q)).slice(0, 20);
+
+    opdDiagSuggestions.innerHTML = '';
+    if (matches.length === 0) {
+        opdDiagSuggestions.style.display = 'none';
+        return;
+    }
+    opdDiagSuggestions.style.display = 'block';
+    matches.forEach(code => {
+        const div = document.createElement('div');
+        div.style.cssText = 'padding: 0.4rem 0.75rem; cursor: pointer; font-size: 0.85rem; border-bottom: 1px solid var(--border-color);';
+        div.textContent = code;
+        div.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            addDiagCode(code);
+            opdDiagSearch.value = '';
+            opdDiagSearchQuery = '';
+            opdDiagSuggestions.style.display = 'none';
+        });
+        div.addEventListener('mouseenter', () => { div.style.backgroundColor = 'var(--bg-hover)'; });
+        div.addEventListener('mouseleave', () => { div.style.backgroundColor = ''; });
+        opdDiagSuggestions.appendChild(div);
+    });
+}
+
+function addDiagCode(code) {
+    if (selectedOpdDiagCodes.has(code)) return;
+    selectedOpdDiagCodes.add(code);
+    renderDiagTags();
+    updateOpdDashboard();
+}
+
+function removeDiagCode(code) {
+    selectedOpdDiagCodes.delete(code);
+    renderDiagTags();
+    updateOpdDashboard();
+}
+
+function renderDiagTags() {
+    if (!opdDiagSelected) return;
+    opdDiagSelected.innerHTML = '';
+    if (selectedOpdDiagCodes.size === 0) return;
+    selectedOpdDiagCodes.forEach(code => {
+        const tag = document.createElement('span');
+        tag.style.cssText = 'display: inline-flex; align-items: center; gap: 0.25rem; background: var(--primary); color: #fff; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem;';
+        tag.innerHTML = `${code} <i class="fa-solid fa-xmark" style="cursor:pointer;font-size:0.7rem;"></i>`;
+        tag.querySelector('i').addEventListener('click', () => removeDiagCode(code));
+        opdDiagSelected.appendChild(tag);
+    });
+}
+
+// ---- Cascading Location Filters ----
+function updateAmphurOptions(selectedChangwat) {
+    let amphurs = [...new Set(opdLocCache
+        .filter(r => selectedChangwat === 'all' || r.changwat === selectedChangwat)
+        .map(r => r.amphur)
+    )].sort();
+
+    opdAmphurSelect.innerHTML = '<option value="all">-- ทุกอำเภอ --</option>';
+    amphurs.forEach(amp => {
+        if (!amp) return;
+        const opt = document.createElement('option');
+        opt.value = amp;
+        opt.innerText = amp;
+        if (selectedOpdAmphur === amp) opt.selected = true;
+        opdAmphurSelect.appendChild(opt);
+    });
+
+    // Reset district when amphur changes
+    updateDistrictOptions(selectedChangwat, selectedOpdAmphur);
+}
+
+function updateDistrictOptions(selectedChangwat, selectedAmphur) {
+    let districts = [...new Set(opdLocCache
+        .filter(r => {
+            if (selectedChangwat !== 'all' && r.changwat !== selectedChangwat) return false;
+            if (selectedAmphur !== 'all' && r.amphur !== selectedAmphur) return false;
+            return true;
+        })
+        .map(r => r.district)
+    )].sort();
+
+    opdDistrictSelect.innerHTML = '<option value="all">-- ทุกตำบล --</option>';
+    districts.forEach(dis => {
+        if (!dis) return;
+        const opt = document.createElement('option');
+        opt.value = dis;
+        opt.innerText = dis;
+        if (selectedOpdDistrict === dis) opt.selected = true;
+        opdDistrictSelect.appendChild(opt);
+    });
+}
+
+// ---- Filter Logic (combines all filters across all data caches) ----
 function getFilteredOpdData() {
     return opdRawData.filter(row => {
         if (!selectedOpdYears.has(row.byear)) return false;
@@ -2957,35 +3223,79 @@ function getFilteredOpdData() {
         if (!selectedOpdSex.has(row.sex)) return false;
         if (!selectedOpdDiagTypes.has(row.diag_type)) return false;
         if (selectedOpdIns !== 'all' && row.ins_type !== selectedOpdIns) return false;
+        // For amphur/district filter: old summary may not have changwat, so only filter via amphur
+        if (selectedOpdAmphur !== 'all' && row.amphur !== selectedOpdAmphur) return false;
+        if (selectedOpdDistrict !== 'all' && row.district !== selectedOpdDistrict) return false;
+        return true;
+    });
+}
+
+// For diag cache: apply year/month/sex/changwat/amphur filters
+function filterDiagData() {
+    return opdDiagCache.filter(row => {
+        if (!selectedOpdYears.has(row.byear)) return false;
+        if (!selectedOpdMonths.has(row.month_visit)) return false;
+        if (!selectedOpdSex.has(row.sex)) return false;
+        if (!selectedOpdDiagTypes.has(row.diag_type)) return false;
+        if (selectedOpdChangwat !== 'all' && row.changwat !== selectedOpdChangwat) return false;
+        if (selectedOpdAmphur !== 'all' && row.amphur !== selectedOpdAmphur) return false;
+        if (selectedOpdDiagCodes.size > 0 && !selectedOpdDiagCodes.has(row.diag_code)) return false;
+        return true;
+    });
+}
+
+function filterDeptData() {
+    return opdDeptCache.filter(row => {
+        if (!selectedOpdYears.has(row.byear)) return false;
+        if (!selectedOpdMonths.has(row.month_visit)) return false;
+        if (!selectedOpdSex.has(row.sex)) return false;
+        if (selectedOpdChangwat !== 'all' && row.changwat !== selectedOpdChangwat) return false;
         if (selectedOpdAmphur !== 'all' && row.amphur !== selectedOpdAmphur) return false;
         return true;
     });
 }
 
+function filterAgeData() {
+    return opdAgeCache.filter(row => {
+        if (!selectedOpdYears.has(row.byear)) return false;
+        if (!selectedOpdMonths.has(row.month_visit)) return false;
+        if (!selectedOpdSex.has(row.sex)) return false;
+        if (selectedOpdChangwat !== 'all' && row.changwat !== selectedOpdChangwat) return false;
+        if (selectedOpdAmphur !== 'all' && row.amphur !== selectedOpdAmphur) return false;
+        return true;
+    });
+}
+
+function filterLocData() {
+    return opdLocCache.filter(row => {
+        if (!selectedOpdYears.has(row.byear)) return false;
+        if (selectedOpdChangwat !== 'all' && row.changwat !== selectedOpdChangwat) return false;
+        if (selectedOpdAmphur !== 'all' && row.amphur !== selectedOpdAmphur) return false;
+        if (selectedOpdDistrict !== 'all' && row.district !== selectedOpdDistrict) return false;
+        return true;
+    });
+}
+
+// ---- Main Update Function ----
 function updateOpdDashboard() {
     const filtered = getFilteredOpdData();
+    const diagData = filterDiagData();
+    const deptData = filterDeptData();
+    const ageData = filterAgeData();
+    const locData = filterLocData();
 
-    // 1. Compute KPIs
-    let totalVisits = 0;
-    let totalAgeWeightedSum = 0;
-    let maleVisits = 0;
-    let femaleVisits = 0;
-
+    // KPIs
+    let totalVisits = 0, totalAgeWeightedSum = 0, maleVisits = 0, femaleVisits = 0;
     filtered.forEach(row => {
         totalVisits += row.visit_count;
         totalAgeWeightedSum += row.sum_age;
-        if (row.sex === 'ชาย') {
-            maleVisits += row.visit_count;
-        } else if (row.sex === 'หญิง') {
-            femaleVisits += row.visit_count;
-        }
+        if (row.sex === 'ชาย') maleVisits += row.visit_count;
+        else if (row.sex === 'หญิง') femaleVisits += row.visit_count;
     });
-
     const avgAge = totalVisits > 0 ? (totalAgeWeightedSum / totalVisits) : 0;
     const femalePct = totalVisits > 0 ? (femaleVisits / totalVisits * 100) : 0;
     const malePct = totalVisits > 0 ? (maleVisits / totalVisits * 100) : 0;
 
-    // Set KPI text
     document.getElementById('val-opd-total-visits').innerText = totalVisits.toLocaleString();
     document.getElementById('val-opd-avg-age').innerText = avgAge.toFixed(2);
     document.getElementById('val-opd-female-pct').innerText = `${femalePct.toFixed(1)}%`;
@@ -2993,180 +3303,235 @@ function updateOpdDashboard() {
     document.getElementById('val-opd-male-pct').innerText = `${malePct.toFixed(1)}%`;
     document.getElementById('val-opd-male-count').innerText = `${maleVisits.toLocaleString()} ครั้ง`;
 
-    // 2. Render Charts
+    // Charts
     renderOpdTrendChart(filtered);
-    renderOpdDiagTypeChart(filtered);
-    renderOpdInsChart(filtered);
-    renderOpdGeoChart(filtered);
+    renderOpdDiagChart(diagData);
+    renderOpdAgeChart(ageData);
+    renderOpdDeptChart(deptData);
+    renderOpdGeoChart(locData);
 
-    // 3. Render Table
+    // Table
     renderOpdTable(filtered);
+
+    // Latest data badge
+    const maxYear = [...selectedOpdYears].sort((a,b)=>b-a)[0];
+    if (maxYear) {
+        const badge = document.getElementById('opd-trend-badge');
+        if (badge) badge.innerText = `ข้อมูลล่าสุด: ปี ${maxYear}`;
+    }
 }
 
+// ---- Chart 1: Monthly Visit Trend ----
 function renderOpdTrendChart(data) {
     const canvas = document.getElementById('opdTrendChart');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    
-    // Group by year_visit and month_visit
-    const monthlyVisits = {};
+    if (opdTrendChartInstance) opdTrendChartInstance.destroy();
+
+    const monthly = {};
     data.forEach(row => {
         const key = `${row.year_visit}-${row.month_visit}`;
-        if (!monthlyVisits[key]) {
-            monthlyVisits[key] = { label: `${monthNamesThai[row.month_visit] || row.month_visit} ${row.year_visit}`, visits: 0 };
-        }
-        monthlyVisits[key].visits += row.visit_count;
+        if (!monthly[key]) monthly[key] = { visits: 0 };
+        monthly[key].visits += row.visit_count;
     });
 
-    const sortedKeys = Object.keys(monthlyVisits).sort();
-    const labels = sortedKeys.map(k => monthlyVisits[k].label);
-    const chartData = sortedKeys.map(k => monthlyVisits[k].visits);
+    const sortedKeys = Object.keys(monthly).sort();
+    const labels = sortedKeys.map(k => {
+        const parts = k.split('-');
+        const m = parts[1]; const y = parts[0];
+        const mn = { '01':'ม.ค.','02':'ก.พ.','03':'มี.ค.','04':'เม.ย.','05':'พ.ค.','06':'มิ.ย.','07':'ก.ค.','08':'ส.ค.','09':'ก.ย.','10':'ต.ค.','11':'พ.ย.','12':'ธ.ค.' }[m] || m;
+        return `${mn} ${y}`;
+    });
+    const chartData = sortedKeys.map(k => monthly[k].visits);
 
-    if (opdTrendChartInstance) opdTrendChartInstance.destroy();
+    const isDark = document.body.classList.contains('dark-mode');
+    const gridColor = isDark ? '#243049' : '#e2e8f0';
+    const textColor = isDark ? '#9ca3af' : '#64748b';
 
     opdTrendChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
             datasets: [{
-                label: 'จำนวนการรับบริการ (ครั้ง)',
+                label: 'จำนวนครั้ง (ครั้ง)',
                 data: chartData,
                 borderColor: '#4f46e5',
-                backgroundColor: 'rgba(79, 70, 229, 0.1)',
-                borderWidth: 2,
+                backgroundColor: 'rgba(79,70,229,0.1)',
+                borderWidth: 2.5,
                 fill: true,
-                tension: 0.3
+                tension: 0.3,
+                pointRadius: 3,
+                pointHoverRadius: 6
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false }
-            },
+            responsive: true, maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true }
+                x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 } } },
+                y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 }, callback: v => v.toLocaleString() } }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: c => ` จำนวนครั้ง: ${c.raw.toLocaleString()} ครั้ง`
+                    }
+                }
             }
         }
     });
 }
 
-function renderOpdDiagTypeChart(data) {
-    const canvas = document.getElementById('opdDiagTypeChart');
+// ---- Chart 2: Top Diagnosis Codes ----
+function renderOpdDiagChart(data) {
+    const canvas = document.getElementById('opdDiagChart');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    
-    const diagTypeLabels = {
-        '1': 'Principal Diagnosis',
-        '2': 'Co-morbidity',
-        '3': 'Complication',
-        '4': 'Other',
-        '5': 'External Cause'
-    };
+    if (opdDiagChartInstance) opdDiagChartInstance.destroy();
 
     const grouped = {};
     data.forEach(row => {
-        const label = diagTypeLabels[row.diag_type] || `ประเภท ${row.diag_type}`;
-        grouped[label] = (grouped[label] || 0) + row.visit_count;
+        const code = row.diag_code || 'ไม่ระบุ';
+        grouped[code] = (grouped[code] || 0) + row.visit_count;
     });
 
-    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]);
+    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 10);
     const labels = sorted.map(e => e[0]);
     const values = sorted.map(e => e[1]);
 
-    if (opdDiagTypeChartInstance) opdDiagTypeChartInstance.destroy();
+    const isDark = document.body.classList.contains('dark-mode');
+    const gridColor = isDark ? '#243049' : '#e2e8f0';
+    const textColor = isDark ? '#9ca3af' : '#64748b';
 
-    opdDiagTypeChartInstance = new Chart(ctx, {
+    if (labels.length === 0) {
+        opdDiagChartInstance = new Chart(ctx, {
+            type: 'bar', data: { datasets: [] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'ไม่มีข้อมูล', color: textColor } } }
+        });
+        return;
+    }
+
+    opdDiagChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
             datasets: [{
                 label: 'จำนวนครั้ง (ครั้ง)',
                 data: values,
-                backgroundColor: '#3b82f6',
+                backgroundColor: ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316','#84cc16','#6366f1'],
                 borderRadius: 4
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true } }
-        }
-    });
-}
-
-function renderOpdInsChart(data) {
-    const canvas = document.getElementById('opdInsChart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    
-    const grouped = {};
-    data.forEach(row => {
-        const label = row.ins_type || 'ไม่ระบุ';
-        grouped[label] = (grouped[label] || 0) + row.visit_count;
-    });
-
-    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]);
-    
-    const maxItems = 5;
-    const labels = [];
-    const values = [];
-    let otherSum = 0;
-
-    sorted.forEach((e, idx) => {
-        if (idx < maxItems) {
-            labels.push(e[0]);
-            values.push(e[1]);
-        } else {
-            otherSum += e[1];
-        }
-    });
-
-    if (otherSum > 0) {
-        labels.push('อื่น ๆ');
-        values.push(otherSum);
-    }
-
-    if (opdInsChartInstance) opdInsChartInstance.destroy();
-
-    opdInsChartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: values,
-                backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#94a3b8']
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            indexAxis: 'y',
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                x: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, callback: v => v.toLocaleString() } },
+                y: { grid: { display: false }, ticks: { color: textColor, font: { size: 11 } } }
+            },
             plugins: {
-                legend: { position: 'right', labels: { boxWidth: 12 } }
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: c => ` จำนวนครั้ง: ${c.raw.toLocaleString()} ครั้ง`
+                    }
+                }
             }
         }
     });
 }
 
-function renderOpdGeoChart(data) {
-    const canvas = document.getElementById('opdGeoChart');
+// ---- Chart 3: Age Group Distribution ----
+function renderOpdAgeChart(data) {
+    const canvas = document.getElementById('opdAgeChart');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    
+    if (opdAgeChartInstance) opdAgeChartInstance.destroy();
+
     const grouped = {};
     data.forEach(row => {
-        const label = row.amphur || 'ไม่ระบุ';
-        grouped[label] = (grouped[label] || 0) + row.visit_count;
+        const ag = row.age_group || 'ไม่ระบุ';
+        grouped[ag] = (grouped[ag] || 0) + row.visit_count;
     });
 
-    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]);
-    const labels = sorted.map(e => e[0]);
+    const isDark = document.body.classList.contains('dark-mode');
+    const textColor = isDark ? '#9ca3af' : '#64748b';
+
+    // Sort by ageGroupOrder
+    const labels = ageGroupOrder.filter(g => grouped[g]);
+    const values = labels.map(g => grouped[g]);
+    const colors = ['#06b6d4','#3b82f6','#6366f1','#f59e0b','#f97316','#ef4444','#94a3b8'];
+
+    if (labels.length === 0) {
+        opdAgeChartInstance = new Chart(ctx, {
+            type: 'bar', data: { datasets: [] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'ไม่มีข้อมูล', color: textColor } } }
+        });
+        return;
+    }
+
+    opdAgeChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'จำนวนครั้ง (ครั้ง)',
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, ticks: { color: textColor, callback: v => v.toLocaleString() } },
+                x: { ticks: { color: textColor, font: { size: 10 } } }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: c => ` จำนวนครั้ง: ${c.raw.toLocaleString()} ครั้ง`
+                    }
+                }
+            }
+        }
+    });
+}
+
+// ---- Chart 4: Top Departments ----
+function renderOpdDeptChart(data) {
+    const canvas = document.getElementById('opdDeptChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (opdDeptChartInstance) opdDeptChartInstance.destroy();
+
+    const grouped = {};
+    data.forEach(row => {
+        const dept = row.department || 'ไม่ระบุ';
+        grouped[dept] = (grouped[dept] || 0) + row.visit_count;
+    });
+
+    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    // Shorten long department names
+    const labels = sorted.map(e => e[0].length > 20 ? e[0].slice(0, 18) + '...' : e[0]);
     const values = sorted.map(e => e[1]);
+    // Keep full name for tooltip
+    const fullNames = sorted.map(e => e[0]);
 
-    if (opdGeoChartInstance) opdGeoChartInstance.destroy();
+    const isDark = document.body.classList.contains('dark-mode');
+    const gridColor = isDark ? '#243049' : '#e2e8f0';
+    const textColor = isDark ? '#9ca3af' : '#64748b';
 
-    opdGeoChartInstance = new Chart(ctx, {
+    if (labels.length === 0) {
+        opdDeptChartInstance = new Chart(ctx, {
+            type: 'bar', data: { datasets: [] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'ไม่มีข้อมูล', color: textColor } } }
+        });
+        return;
+    }
+
+    opdDeptChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
@@ -3179,17 +3544,97 @@ function renderOpdGeoChart(data) {
         },
         options: {
             indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { x: { beginAtZero: true } }
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                x: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, callback: v => v.toLocaleString() } },
+                y: { grid: { display: false }, ticks: { color: textColor, font: { size: 10 } } }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: c => fullNames[c[0].dataIndex] || c[0].label,
+                        label: c => ` จำนวนครั้ง: ${c.raw.toLocaleString()} ครั้ง`
+                    }
+                }
+            }
         }
     });
 }
 
+// ---- Chart 5: Geographic Distribution ----
+function renderOpdGeoChart(data) {
+    const canvas = document.getElementById('opdGeoChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (opdGeoChartInstance) opdGeoChartInstance.destroy();
+
+    // Group by changwat then amphur
+    const grouped = {};
+    data.forEach(row => {
+        const key = `${row.changwat} > ${row.amphur}`;
+        // But if changwat is same and all from one province, just use amphur
+        const uniqueChangwats = [...new Set(data.map(r => r.changwat))];
+        const label = uniqueChangwats.length <= 1 ? row.amphur : key;
+        grouped[label] = (grouped[label] || 0) + row.visit_count;
+    });
+
+    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 15);
+    const labels = sorted.map(e => e[0].length > 22 ? e[0].slice(0, 20) + '...' : e[0]);
+    const values = sorted.map(e => e[1]);
+    const fullLabels = sorted.map(e => e[0]);
+
+    const isDark = document.body.classList.contains('dark-mode');
+    const gridColor = isDark ? '#243049' : '#e2e8f0';
+    const textColor = isDark ? '#9ca3af' : '#64748b';
+
+    if (labels.length === 0) {
+        opdGeoChartInstance = new Chart(ctx, {
+            type: 'bar', data: { datasets: [] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'ไม่มีข้อมูล', color: textColor } } }
+        });
+        return;
+    }
+
+    opdGeoChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'จำนวนครั้ง (ครั้ง)',
+                data: values,
+                backgroundColor: '#3b82f6',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                x: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, callback: v => v.toLocaleString() } },
+                y: { grid: { display: false }, ticks: { color: textColor, font: { size: 10 } } }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: c => fullLabels[c[0].dataIndex] || c[0].label,
+                        label: c => ` จำนวนครั้ง: ${c.raw.toLocaleString()} ครั้ง`
+                    }
+                }
+            }
+        }
+    });
+}
+
+// ---- Table ----
 function renderOpdTable(data) {
     const tableBody = document.getElementById('opd-table-body');
     if (!tableBody) return;
+
+    // Build amphur→changwat lookup from location cache
+    const amphurToChangwat = {};
+    opdLocCache.forEach(r => { amphurToChangwat[r.amphur] = r.changwat; });
 
     // Group for table
     const tableGrouped = {};
@@ -3198,8 +3643,10 @@ function renderOpdTable(data) {
         if (!tableGrouped[key]) {
             tableGrouped[key] = {
                 byear: row.byear,
+                changwat: amphurToChangwat[row.amphur] || '-',
                 amphur: row.amphur,
                 district: row.district,
+                sex: row.sex,
                 ins_type: row.ins_type,
                 diag_type: row.diag_type,
                 visit_count: 0,
@@ -3212,37 +3659,35 @@ function renderOpdTable(data) {
 
     let renderList = Object.values(tableGrouped);
 
-    // Apply search filter
+    // Search filter
     if (opdTableSearchQuery) {
         const q = opdTableSearchQuery.toLowerCase();
-        renderList = renderList.filter(item => 
+        renderList = renderList.filter(item =>
             item.amphur.toLowerCase().includes(q) ||
             item.district.toLowerCase().includes(q) ||
-            item.ins_type.toLowerCase().includes(q)
+            item.ins_type.toLowerCase().includes(q) ||
+            item.changwat.toLowerCase().includes(q)
         );
     }
 
-    // Apply sorting
+    // Sort
     renderList.sort((a, b) => {
         let valA = a[opdSortColumn];
         let valB = b[opdSortColumn];
-
         if (opdSortColumn === 'avg_age') {
             valA = a.visit_count > 0 ? (a.sum_age / a.visit_count) : 0;
             valB = b.visit_count > 0 ? (b.sum_age / b.visit_count) : 0;
         }
-
         if (typeof valA === 'string') {
-            return opdSortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-        } else {
-            return opdSortDirection === 'asc' ? valA - valB : valB - valA;
+            if (opdSortColumn === 'diag_code' || opdSortColumn === 'department' || opdSortColumn === 'age_group') {
+                return 0; // These fields are not available in table data
+            }
+            return opdSortDirection === 'asc' ? valA.localeCompare(valB, 'th') : valB.localeCompare(valA, 'th');
         }
+        return opdSortDirection === 'asc' ? valA - valB : valB - valA;
     });
 
-    // Populate rows
-    tableBody.innerHTML = '';
-    
-    // Pagination / Limit to 100 rows for performance
+    // Limit rows
     const limit = 100;
     const totalCount = renderList.length;
     const listToRender = renderList.slice(0, limit);
@@ -3250,61 +3695,55 @@ function renderOpdTable(data) {
     const infoEl = document.getElementById('opd-table-info');
     if (infoEl) {
         if (totalCount > limit) {
-            infoEl.innerHTML = `แสดงผลลัพธ์ 1 - ${limit} จากทั้งหมด <strong>${totalCount.toLocaleString()}</strong> รายการ (กรุณาใช้การค้นหาเพื่อเจาะจงข้อมูล)`;
+            infoEl.innerHTML = `แสดง 1-${limit} จาก <strong>${totalCount.toLocaleString()}</strong> รายการ (ใช้ค้นหาเพื่อเจาะจง)`;
         } else {
-            infoEl.innerHTML = `แสดงผลลัพธ์ทั้งหมด <strong>${totalCount.toLocaleString()}</strong> รายการ`;
+            infoEl.innerHTML = `แสดงทั้งหมด <strong>${totalCount.toLocaleString()}</strong> รายการ`;
         }
     }
 
+    tableBody.innerHTML = '';
     if (listToRender.length === 0) {
-        tableBody.innerHTML = `
-            <tr>
-                <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                    <i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.5;"></i>
-                    ไม่พบข้อมูลผู้ป่วยนอกตามเงื่อนไขที่เลือก
-                </td>
-            </tr>
-        `;
+        tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-secondary);">ไม่พบข้อมูลตามเงื่อนไข</td></tr>`;
         return;
     }
 
-    const diagTypeLabels = {
-        '1': 'Principal Diag (หลัก)',
-        '2': 'Co-morbidity (ร่วม)',
-        '3': 'Complication (แทรกซ้อน)',
-        '4': 'Other (อื่น ๆ)',
-        '5': 'External Cause (สาเหตุภายนอก)'
-    };
-
     listToRender.forEach(item => {
-        const avgAge = item.visit_count > 0 ? (item.sum_age / item.visit_count) : 0;
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><strong>ปี ${item.byear}</strong></td>
+            <td><strong>${item.byear}</strong></td>
+            <td>${item.changwat}</td>
             <td>${item.amphur}</td>
             <td>${item.district}</td>
-            <td><span class="badge uc">${item.ins_type}</span></td>
-            <td><span class="badge sss">${diagTypeLabels[item.diag_type] || item.diag_type}</span></td>
-            <td class="numeric-cell" style="font-family: 'Inter'; font-weight: 600; color: var(--primary);">${item.visit_count.toLocaleString()}</td>
-            <td class="numeric-cell" style="font-family: 'Inter';">${avgAge.toFixed(1)}</td>
+            <td>${item.sex}</td>
+            <td><span class="badge total">-</span></td>
+            <td><span class="badge sss">${opdDiagTypeLabels[item.diag_type] || item.diag_type}</span></td>
+            <td>-</td>
+            <td>-</td>
+            <td class="numeric-cell" style="font-family:'Inter';font-weight:600;color:var(--primary);">${item.visit_count.toLocaleString()}</td>
         `;
         tableBody.appendChild(tr);
     });
 }
 
+// ---- CSV Export ----
 function exportOpdTableToCsv() {
     const filtered = getFilteredOpdData();
     if (filtered.length === 0) return;
 
-    // Group for CSV
+    // Build amphur→changwat lookup
+    const amphurToChangwat = {};
+    opdLocCache.forEach(r => { amphurToChangwat[r.amphur] = r.changwat; });
+
     const csvGrouped = {};
     filtered.forEach(row => {
         const key = `${row.byear}_${row.amphur}_${row.district}_${row.ins_type}_${row.diag_type}`;
         if (!csvGrouped[key]) {
             csvGrouped[key] = {
                 byear: row.byear,
+                changwat: amphurToChangwat[row.amphur] || '-',
                 amphur: row.amphur,
                 district: row.district,
+                sex: row.sex,
                 ins_type: row.ins_type,
                 diag_type: row.diag_type,
                 visit_count: 0,
@@ -3316,30 +3755,20 @@ function exportOpdTableToCsv() {
     });
 
     const csvData = Object.values(csvGrouped);
-    
-    // Header
-    let csvContent = '\uFEFF'; // UTF-8 BOM
-    csvContent += 'ปีงบประมาณ,อำเภอ,ตำบล,สิทธิ์การรักษา,ประเภทการวินิจฉัย,จำนวนครั้งรับบริการ,อายุเฉลี่ย (ปี)\n';
-    
-    const diagTypeLabels = {
-        '1': 'Principal Diagnosis',
-        '2': 'Co-morbidity',
-        '3': 'Complication',
-        '4': 'Other',
-        '5': 'External Cause'
-    };
+    let csv = '\uFEFF';
+    csv += 'ปีงบประมาณ,จังหวัด,อำเภอ,ตำบล,เพศ,สิทธิ์การรักษา,ประเภทวินิจฉัย,จำนวนครั้ง\n';
 
     csvData.forEach(item => {
-        const avgAge = item.visit_count > 0 ? (item.sum_age / item.visit_count) : 0;
-        const diagLabel = diagTypeLabels[item.diag_type] || item.diag_type;
-        csvContent += `${item.byear},"${item.amphur}","${item.district}","${item.ins_type}","${diagLabel}",${item.visit_count},${avgAge.toFixed(2)}\n`;
+        const dtLabel = opdDiagTypeLabels[item.diag_type] || item.diag_type;
+        csv += `${item.byear},"${item.changwat}","${item.amphur}","${item.district}","${item.sex}","${item.ins_type}","${dtLabel}",${item.visit_count}\n`;
     });
-    
-    downloadCsv(csvContent, `opd_visits_summary_export_${Date.now()}.csv`);
+
+    downloadCsv(csv, `opd_visits_export_${Date.now()}.csv`);
 }
 
+// ---- Event Listeners ----
 function setupOpdEventListeners() {
-    // Dropdown filters
+    // Insurance
     if (opdInsSelect) {
         opdInsSelect.addEventListener('change', (e) => {
             selectedOpdIns = e.target.value;
@@ -3347,14 +3776,39 @@ function setupOpdEventListeners() {
         });
     }
 
-    if (opdAmphurSelect) {
-        opdAmphurSelect.addEventListener('change', (e) => {
-            selectedOpdAmphur = e.target.value;
+    // Changwat (Province)
+    if (opdChangwatSelect) {
+        opdChangwatSelect.addEventListener('change', (e) => {
+            selectedOpdChangwat = e.target.value;
+            selectedOpdAmphur = 'all';
+            selectedOpdDistrict = 'all';
+            updateAmphurOptions(selectedOpdChangwat);
+            if (opdAmphurSelect) opdAmphurSelect.value = 'all';
+            if (opdDistrictSelect) opdDistrictSelect.value = 'all';
             updateOpdDashboard();
         });
     }
 
-    // Search table
+    // Amphur
+    if (opdAmphurSelect) {
+        opdAmphurSelect.addEventListener('change', (e) => {
+            selectedOpdAmphur = e.target.value;
+            selectedOpdDistrict = 'all';
+            updateDistrictOptions(selectedOpdChangwat, selectedOpdAmphur);
+            if (opdDistrictSelect) opdDistrictSelect.value = 'all';
+            updateOpdDashboard();
+        });
+    }
+
+    // District
+    if (opdDistrictSelect) {
+        opdDistrictSelect.addEventListener('change', (e) => {
+            selectedOpdDistrict = e.target.value;
+            updateOpdDashboard();
+        });
+    }
+
+    // Table search
     if (opdTableSearchInput) {
         opdTableSearchInput.addEventListener('input', (e) => {
             opdTableSearchQuery = e.target.value;
@@ -3362,7 +3816,7 @@ function setupOpdEventListeners() {
         });
     }
 
-    // Export button
+    // Export
     if (btnOpdExportCsv) {
         btnOpdExportCsv.addEventListener('click', exportOpdTableToCsv);
     }
@@ -3379,13 +3833,10 @@ function setupOpdEventListeners() {
                     opdSortColumn = col;
                     opdSortDirection = 'desc';
                 }
-
-                // Update UI header sorting icons
                 tableHeader.querySelectorAll('th[data-column]').forEach(el => {
                     el.classList.remove('sort-asc', 'sort-desc');
                 });
                 th.classList.add(opdSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
-
                 renderOpdTable(getFilteredOpdData());
             });
         });

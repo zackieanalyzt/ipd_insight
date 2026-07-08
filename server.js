@@ -23,6 +23,10 @@ let cmiCache = [];
 let transfersCache = [];
 let itemsCache = [];
 let opdCache = [];
+let opdDiagCache = [];
+let opdDeptCache = [];
+let opdAgeCache = [];
+let opdLocCache = [];
 
 // Database Connection & Failover State
 let currentMode = 'csv'; // Initial mode is csv, will try db on startup
@@ -54,6 +58,9 @@ function initializeDatabase() {
         }
     });
 
+    // Always load CSV data as fallback baseline (also serves the new OPD endpoints)
+    loadCSVDataSources();
+
     // Run initial connection test
     testConnection();
     // Start heartbeat monitor
@@ -84,7 +91,8 @@ async function testConnection() {
 function switchToCSV(reason) {
     console.warn(`[${new Date().toISOString()}] SWITCHING TO CSV BACKUP MODE. Reason: ${reason}`);
     currentMode = 'csv';
-    if (cmiCache.length === 0 || transfersCache.length === 0 || itemsCache.length === 0 || opdCache.length === 0) {
+    if (cmiCache.length === 0 || transfersCache.length === 0 || itemsCache.length === 0 || opdCache.length === 0 ||
+        opdDiagCache.length === 0 || opdDeptCache.length === 0 || opdAgeCache.length === 0 || opdLocCache.length === 0) {
         loadCSVDataSources();
     }
 }
@@ -368,8 +376,70 @@ function loadCSVDataSources() {
         diag_type: row.diag_type ? row.diag_type.trim() : 'ไม่ระบุ',
         visit_count: parseInt(row.visit_count) || 0,
         sum_age: parseInt(row.sum_age) || 0
-    })).filter(row => row.byear > 0 && row.visit_count > 0);
-    console.log(`[${new Date().toISOString()}] Loaded ${opdFilename}: ${opdCache.length} rows`);
+	    })).filter(row => row.byear > 0 && row.visit_count > 0);
+	    console.log(`[${new Date().toISOString()}] Loaded ${opdFilename}: ${opdCache.length} rows`);
+
+	    // 5. Load OPD Diag Summary Data
+	    const diagFilename = 'opd_diag_summary.csv';
+	    const diagPath = path.join(__dirname, diagFilename);
+	    const diagRaw = parseCSVFile(diagPath);
+	    opdDiagCache = diagRaw.map(row => ({
+	        byear: parseInt(row.byear) || 0,
+	        year_visit: parseInt(row.year_visit) || 0,
+	        month_visit: row.month_visit ? row.month_visit.toString().padStart(2, '0') : '',
+	        changwat: row.changwat ? row.changwat.trim() : 'ไม่ระบุ',
+	        amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
+	        sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
+	        diag_code: row.diag_code ? row.diag_code.trim() : 'ไม่ระบุ',
+	        diag_type: row.diag_type ? row.diag_type.trim() : 'ไม่ระบุ',
+	        visit_count: parseInt(row.visit_count) || 0
+	    })).filter(row => row.byear > 0 && row.visit_count > 0);
+	    console.log(`[${new Date().toISOString()}] Loaded ${diagFilename}: ${opdDiagCache.length} rows`);
+
+	    // 6. Load OPD Department Summary Data
+	    const deptFilename = 'opd_dept_summary.csv';
+	    const deptPath = path.join(__dirname, deptFilename);
+	    const deptRaw = parseCSVFile(deptPath);
+	    opdDeptCache = deptRaw.map(row => ({
+	        byear: parseInt(row.byear) || 0,
+	        year_visit: parseInt(row.year_visit) || 0,
+	        month_visit: row.month_visit ? row.month_visit.toString().padStart(2, '0') : '',
+	        changwat: row.changwat ? row.changwat.trim() : 'ไม่ระบุ',
+	        amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
+	        sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
+	        department: row.department ? row.department.trim() : 'ไม่ระบุ',
+	        visit_count: parseInt(row.visit_count) || 0
+	    })).filter(row => row.byear > 0 && row.visit_count > 0);
+	    console.log(`[${new Date().toISOString()}] Loaded ${deptFilename}: ${opdDeptCache.length} rows`);
+
+	    // 7. Load OPD Age Group Summary Data
+	    const ageFilename = 'opd_age_summary.csv';
+	    const agePath = path.join(__dirname, ageFilename);
+	    const ageRaw = parseCSVFile(agePath);
+	    opdAgeCache = ageRaw.map(row => ({
+	        byear: parseInt(row.byear) || 0,
+	        year_visit: parseInt(row.year_visit) || 0,
+	        month_visit: row.month_visit ? row.month_visit.toString().padStart(2, '0') : '',
+	        changwat: row.changwat ? row.changwat.trim() : 'ไม่ระบุ',
+	        amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
+	        sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
+	        age_group: row.age_group ? row.age_group.trim() : 'ไม่ระบุ',
+	        visit_count: parseInt(row.visit_count) || 0
+	    })).filter(row => row.byear > 0 && row.visit_count > 0);
+	    console.log(`[${new Date().toISOString()}] Loaded ${ageFilename}: ${opdAgeCache.length} rows`);
+
+	    // 8. Load OPD Location Summary Data
+	    const locFilename = 'opd_location_summary.csv';
+	    const locPath = path.join(__dirname, locFilename);
+	    const locRaw = parseCSVFile(locPath);
+	    opdLocCache = locRaw.map(row => ({
+	        byear: parseInt(row.byear) || 0,
+	        changwat: row.changwat ? row.changwat.trim() : 'ไม่ระบุ',
+	        amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
+	        district: row.district ? row.district.trim() : 'ไม่ระบุ',
+	        visit_count: parseInt(row.visit_count) || 0
+	    })).filter(row => row.byear > 0 && row.visit_count > 0);
+	    console.log(`[${new Date().toISOString()}] Loaded ${locFilename}: ${opdLocCache.length} rows`);
 
     const duration = ((Date.now() - start) / 1000).toFixed(2);
     console.log(`[${new Date().toISOString()}] All data sources loaded into memory in ${duration}s`);
@@ -458,6 +528,26 @@ app.get('/api/opd/summary', async (req, res) => {
         }
     }
     res.json(opdCache);
+});
+
+// API: Get OPD Diag Summary data
+app.get('/api/opd/diag-summary', async (req, res) => {
+    res.json(opdDiagCache);
+});
+
+// API: Get OPD Department Summary data
+app.get('/api/opd/dept-summary', async (req, res) => {
+    res.json(opdDeptCache);
+});
+
+// API: Get OPD Age Group Summary data
+app.get('/api/opd/age-summary', async (req, res) => {
+    res.json(opdAgeCache);
+});
+
+// API: Get OPD Location Summary data
+app.get('/api/opd/locations', async (req, res) => {
+    res.json(opdLocCache);
 });
 
 // Start Express server
