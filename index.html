@@ -1016,61 +1016,6 @@
                     </div>
                 </div>
 
-                <!-- Geographic Distribution (Full Width) -->
-                <div class="transfer-charts-grid" style="margin-top: 1.5rem;">
-                    <div class="visual-container full-width">
-                        <div class="panel-header">
-                            <div class="panel-title">
-                                <i class="fa-solid fa-map-location-dot" style="color: var(--primary);"></i>
-                                <span>จำนวนผู้ป่วยแยกตามจังหวัดและอำเภอ (Geographic Distribution)</span>
-                            </div>
-                        </div>
-                        <div class="chart-wrapper">
-                            <canvas id="opdGeoChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Detailed OPD Table Section -->
-                <div class="details-container" style="margin-top: 1.5rem;">
-                    <div class="table-header">
-                        <div class="panel-title">
-                            <i class="fa-solid fa-table"></i>
-                            <span>ตารางแสดงข้อมูลสรุปผู้ป่วยนอก</span>
-                        </div>
-                        <div class="search-input-wrapper">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" id="opd-table-search" class="search-input" placeholder="ค้นหา...">
-                        </div>
-                        <button id="btn-opd-export-csv" class="btn">
-                            <i class="fa-solid fa-file-csv"></i> ส่งออกข้อมูลเป็น CSV
-                        </button>
-                    </div>
-                    
-                    <!-- Table Wrapper -->
-                    <div class="table-wrapper">
-                        <table id="opd-data-table">
-                            <thead>
-                                <tr>
-                                    <th data-column="byear">ปีงบฯ <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="changwat">จังหวัด <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="amphur">อำเภอ <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="district">ตำบล <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="sex">เพศ <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="diag_code">รหัสโรค <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="diag_type">ประเภทวินิจฉัย <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="department">แผนก <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="age_group">กลุ่มอายุ <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="visit_count" class="numeric-cell">จำนวนครั้ง <i class="fa-solid fa-sort"></i></th>
-                                </tr>
-                            </thead>
-                            <tbody id="opd-table-body">
-                                <!-- Javascript will populate rows here -->
-                            </tbody>
-                        </table>
-                    </div>
-                    <div id="opd-table-info" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; margin-top: 0.5rem;"></div>
-                </div>
             </div>
 
         </main>

@@ -63,10 +63,6 @@ let opdTrendChartInstance = null;
 let opdDiagChartInstance = null;
 let opdAgeChartInstance = null;
 let opdDeptChartInstance = null;
-let opdGeoChartInstance = null;
-let opdSortColumn = 'visit_count';
-let opdSortDirection = 'desc';
-let opdTableSearchQuery = '';
 
 // Distinct color palette for MDCs (Tailwind-like vibrant palette)
 const mdcColors = [
@@ -170,9 +166,6 @@ const opdInsSelect = document.getElementById('opd-ins-select');
 const opdChangwatSelect = document.getElementById('opd-changwat-select');
 const opdAmphurSelect = document.getElementById('opd-amphur-select');
 const opdDistrictSelect = document.getElementById('opd-district-select');
-const opdTableSearchInput = document.getElementById('opd-table-search');
-const opdTableBody = document.getElementById('opd-table-body');
-const btnOpdExportCsv = document.getElementById('btn-opd-export-csv');
 
 // Initialize Dashboard Portal
 document.addEventListener('DOMContentLoaded', () => {
@@ -203,7 +196,6 @@ function resizeAllCharts() {
     if (opdDiagChartInstance) opdDiagChartInstance.resize();
     if (opdAgeChartInstance) opdAgeChartInstance.resize();
     if (opdDeptChartInstance) opdDeptChartInstance.resize();
-    if (opdGeoChartInstance) opdGeoChartInstance.resize();
 }
 
 // Setup event listeners for tab switching, themes, sorting, searching
@@ -611,8 +603,6 @@ function resetActiveTabFilters() {
         if (opdDiagSearch) opdDiagSearch.value = '';
         selectedOpdDiagCodes.clear();
         if (opdDiagSelected) opdDiagSelected.innerHTML = '';
-        opdTableSearchInput.value = '';
-        opdTableSearchQuery = '';
         updateOpdDashboard();
     }
 }
@@ -3266,23 +3256,12 @@ function filterAgeData() {
     });
 }
 
-function filterLocData() {
-    return opdLocCache.filter(row => {
-        if (!selectedOpdYears.has(row.byear)) return false;
-        if (selectedOpdChangwat !== 'all' && row.changwat !== selectedOpdChangwat) return false;
-        if (selectedOpdAmphur !== 'all' && row.amphur !== selectedOpdAmphur) return false;
-        if (selectedOpdDistrict !== 'all' && row.district !== selectedOpdDistrict) return false;
-        return true;
-    });
-}
-
 // ---- Main Update Function ----
 function updateOpdDashboard() {
     const filtered = getFilteredOpdData();
     const diagData = filterDiagData();
     const deptData = filterDeptData();
     const ageData = filterAgeData();
-    const locData = filterLocData();
 
     // KPIs
     let totalVisits = 0, totalAgeWeightedSum = 0, maleVisits = 0, femaleVisits = 0;
@@ -3308,10 +3287,6 @@ function updateOpdDashboard() {
     renderOpdDiagChart(diagData);
     renderOpdAgeChart(ageData);
     renderOpdDeptChart(deptData);
-    renderOpdGeoChart(locData);
-
-    // Table
-    renderOpdTable(filtered);
 
     // Latest data badge
     const maxYear = [...selectedOpdYears].sort((a,b)=>b-a)[0];
@@ -3562,210 +3537,6 @@ function renderOpdDeptChart(data) {
     });
 }
 
-// ---- Chart 5: Geographic Distribution ----
-function renderOpdGeoChart(data) {
-    const canvas = document.getElementById('opdGeoChart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (opdGeoChartInstance) opdGeoChartInstance.destroy();
-
-    // Group by changwat then amphur
-    const grouped = {};
-    data.forEach(row => {
-        const key = `${row.changwat} > ${row.amphur}`;
-        // But if changwat is same and all from one province, just use amphur
-        const uniqueChangwats = [...new Set(data.map(r => r.changwat))];
-        const label = uniqueChangwats.length <= 1 ? row.amphur : key;
-        grouped[label] = (grouped[label] || 0) + row.visit_count;
-    });
-
-    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 15);
-    const labels = sorted.map(e => e[0].length > 22 ? e[0].slice(0, 20) + '...' : e[0]);
-    const values = sorted.map(e => e[1]);
-    const fullLabels = sorted.map(e => e[0]);
-
-    const isDark = document.body.classList.contains('dark-mode');
-    const gridColor = isDark ? '#243049' : '#e2e8f0';
-    const textColor = isDark ? '#9ca3af' : '#64748b';
-
-    if (labels.length === 0) {
-        opdGeoChartInstance = new Chart(ctx, {
-            type: 'bar', data: { datasets: [] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'ไม่มีข้อมูล', color: textColor } } }
-        });
-        return;
-    }
-
-    opdGeoChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'จำนวนครั้ง (ครั้ง)',
-                data: values,
-                backgroundColor: '#3b82f6',
-                borderRadius: 4
-            }]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true, maintainAspectRatio: false,
-            scales: {
-                x: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, callback: v => v.toLocaleString() } },
-                y: { grid: { display: false }, ticks: { color: textColor, font: { size: 10 } } }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        title: c => fullLabels[c[0].dataIndex] || c[0].label,
-                        label: c => ` จำนวนครั้ง: ${c.raw.toLocaleString()} ครั้ง`
-                    }
-                }
-            }
-        }
-    });
-}
-
-// ---- Table ----
-function renderOpdTable(data) {
-    const tableBody = document.getElementById('opd-table-body');
-    if (!tableBody) return;
-
-    // Build amphur→changwat lookup from location cache
-    const amphurToChangwat = {};
-    opdLocCache.forEach(r => { amphurToChangwat[r.amphur] = r.changwat; });
-
-    // Group for table
-    const tableGrouped = {};
-    data.forEach(row => {
-        const key = `${row.byear}_${row.amphur}_${row.district}_${row.ins_type}_${row.diag_type}`;
-        if (!tableGrouped[key]) {
-            tableGrouped[key] = {
-                byear: row.byear,
-                changwat: amphurToChangwat[row.amphur] || '-',
-                amphur: row.amphur,
-                district: row.district,
-                sex: row.sex,
-                ins_type: row.ins_type,
-                diag_type: row.diag_type,
-                visit_count: 0,
-                sum_age: 0
-            };
-        }
-        tableGrouped[key].visit_count += row.visit_count;
-        tableGrouped[key].sum_age += row.sum_age;
-    });
-
-    let renderList = Object.values(tableGrouped);
-
-    // Search filter
-    if (opdTableSearchQuery) {
-        const q = opdTableSearchQuery.toLowerCase();
-        renderList = renderList.filter(item =>
-            item.amphur.toLowerCase().includes(q) ||
-            item.district.toLowerCase().includes(q) ||
-            item.ins_type.toLowerCase().includes(q) ||
-            item.changwat.toLowerCase().includes(q)
-        );
-    }
-
-    // Sort
-    renderList.sort((a, b) => {
-        let valA = a[opdSortColumn];
-        let valB = b[opdSortColumn];
-        if (opdSortColumn === 'avg_age') {
-            valA = a.visit_count > 0 ? (a.sum_age / a.visit_count) : 0;
-            valB = b.visit_count > 0 ? (b.sum_age / b.visit_count) : 0;
-        }
-        if (typeof valA === 'string') {
-            if (opdSortColumn === 'diag_code' || opdSortColumn === 'department' || opdSortColumn === 'age_group') {
-                return 0; // These fields are not available in table data
-            }
-            return opdSortDirection === 'asc' ? valA.localeCompare(valB, 'th') : valB.localeCompare(valA, 'th');
-        }
-        return opdSortDirection === 'asc' ? valA - valB : valB - valA;
-    });
-
-    // Limit rows
-    const limit = 100;
-    const totalCount = renderList.length;
-    const listToRender = renderList.slice(0, limit);
-
-    const infoEl = document.getElementById('opd-table-info');
-    if (infoEl) {
-        if (totalCount > limit) {
-            infoEl.innerHTML = `แสดง 1-${limit} จาก <strong>${totalCount.toLocaleString()}</strong> รายการ (ใช้ค้นหาเพื่อเจาะจง)`;
-        } else {
-            infoEl.innerHTML = `แสดงทั้งหมด <strong>${totalCount.toLocaleString()}</strong> รายการ`;
-        }
-    }
-
-    tableBody.innerHTML = '';
-    if (listToRender.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-secondary);">ไม่พบข้อมูลตามเงื่อนไข</td></tr>`;
-        return;
-    }
-
-    listToRender.forEach(item => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td><strong>${item.byear}</strong></td>
-            <td>${item.changwat}</td>
-            <td>${item.amphur}</td>
-            <td>${item.district}</td>
-            <td>${item.sex}</td>
-            <td><span class="badge total">-</span></td>
-            <td><span class="badge sss">${opdDiagTypeLabels[item.diag_type] || item.diag_type}</span></td>
-            <td>-</td>
-            <td>-</td>
-            <td class="numeric-cell" style="font-family:'Inter';font-weight:600;color:var(--primary);">${item.visit_count.toLocaleString()}</td>
-        `;
-        tableBody.appendChild(tr);
-    });
-}
-
-// ---- CSV Export ----
-function exportOpdTableToCsv() {
-    const filtered = getFilteredOpdData();
-    if (filtered.length === 0) return;
-
-    // Build amphur→changwat lookup
-    const amphurToChangwat = {};
-    opdLocCache.forEach(r => { amphurToChangwat[r.amphur] = r.changwat; });
-
-    const csvGrouped = {};
-    filtered.forEach(row => {
-        const key = `${row.byear}_${row.amphur}_${row.district}_${row.ins_type}_${row.diag_type}`;
-        if (!csvGrouped[key]) {
-            csvGrouped[key] = {
-                byear: row.byear,
-                changwat: amphurToChangwat[row.amphur] || '-',
-                amphur: row.amphur,
-                district: row.district,
-                sex: row.sex,
-                ins_type: row.ins_type,
-                diag_type: row.diag_type,
-                visit_count: 0,
-                sum_age: 0
-            };
-        }
-        csvGrouped[key].visit_count += row.visit_count;
-        csvGrouped[key].sum_age += row.sum_age;
-    });
-
-    const csvData = Object.values(csvGrouped);
-    let csv = '\uFEFF';
-    csv += 'ปีงบประมาณ,จังหวัด,อำเภอ,ตำบล,เพศ,สิทธิ์การรักษา,ประเภทวินิจฉัย,จำนวนครั้ง\n';
-
-    csvData.forEach(item => {
-        const dtLabel = opdDiagTypeLabels[item.diag_type] || item.diag_type;
-        csv += `${item.byear},"${item.changwat}","${item.amphur}","${item.district}","${item.sex}","${item.ins_type}","${dtLabel}",${item.visit_count}\n`;
-    });
-
-    downloadCsv(csv, `opd_visits_export_${Date.now()}.csv`);
-}
-
 // ---- Event Listeners ----
 function setupOpdEventListeners() {
     // Insurance
@@ -3805,40 +3576,6 @@ function setupOpdEventListeners() {
         opdDistrictSelect.addEventListener('change', (e) => {
             selectedOpdDistrict = e.target.value;
             updateOpdDashboard();
-        });
-    }
-
-    // Table search
-    if (opdTableSearchInput) {
-        opdTableSearchInput.addEventListener('input', (e) => {
-            opdTableSearchQuery = e.target.value;
-            renderOpdTable(getFilteredOpdData());
-        });
-    }
-
-    // Export
-    if (btnOpdExportCsv) {
-        btnOpdExportCsv.addEventListener('click', exportOpdTableToCsv);
-    }
-
-    // Table sorting
-    const tableHeader = document.getElementById('opd-data-table');
-    if (tableHeader) {
-        tableHeader.querySelectorAll('th[data-column]').forEach(th => {
-            th.addEventListener('click', () => {
-                const col = th.getAttribute('data-column');
-                if (opdSortColumn === col) {
-                    opdSortDirection = opdSortDirection === 'asc' ? 'desc' : 'asc';
-                } else {
-                    opdSortColumn = col;
-                    opdSortDirection = 'desc';
-                }
-                tableHeader.querySelectorAll('th[data-column]').forEach(el => {
-                    el.classList.remove('sort-asc', 'sort-desc');
-                });
-                th.classList.add(opdSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
-                renderOpdTable(getFilteredOpdData());
-            });
         });
     }
 }
