@@ -1666,5 +1666,157 @@ body.dark-mode .autocomplete-list div:hover {
     gap: 0.25rem;
 }
 
+/* =============================================
+   Fullscreen Chart Mode
+   ============================================= */
 
+/* Fullscreen button in panel-actions */
+.fullscreen-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    width: 32px;
+    height: 32px;
+}
 
+.fullscreen-btn:hover {
+    background-color: var(--primary-light);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+body.dark-mode .fullscreen-btn:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+/* Fullscreen overlay */
+.chart-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 99999 !important;
+    background-color: var(--bg-primary, #f8fafc);
+    padding: 1.5rem 2rem 2rem 2rem !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+body.dark-mode .chart-fullscreen {
+    background-color: #0f172a;
+}
+
+.chart-fullscreen .panel-header {
+    flex-shrink: 0;
+}
+
+.chart-fullscreen .chart-wrapper {
+    flex: 1 !important;
+    height: auto !important;
+    min-height: 300px;
+}
+
+.chart-fullscreen .chart-wrapper canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Zoom control bar shown in fullscreen */
+.zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.zoom-controls .zoom-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+}
+
+.zoom-controls .zoom-btn:hover {
+    background-color: var(--primary-light);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+body.dark-mode .zoom-controls .zoom-btn:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+.zoom-controls .zoom-btn i {
+    font-size: 0.75rem;
+}
+
+/* Exit fullscreen button */
+.exit-fullscreen-btn {
+    background: none;
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.exit-fullscreen-btn:hover {
+    background-color: #fef2f2;
+    color: #dc2626;
+    border-color: #dc2626;
+}
+
+body.dark-mode .exit-fullscreen-btn:hover {
+    background-color: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+    border-color: #f87171;
+}
+
+/* Fullscreen indicator text - hidden by default, shown in fullscreen */
+.fullscreen-indicator {
+    display: none;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    padding: 0.25rem 0.6rem;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+.chart-fullscreen .fullscreen-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}

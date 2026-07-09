@@ -46,8 +46,6 @@ let statusPollInterval = null;
 // Dashboard 4: OPD Visits State
 let opdRawData = [];
 let opdDiagCache = [];
-let opdDeptCache = [];
-let opdAgeCache = [];
 let opdLocCache = [];
 let selectedOpdYears = new Set();
 let selectedOpdMonths = new Set();
@@ -61,8 +59,127 @@ let selectedOpdDistrict = 'all';
 let opdDiagSearchQuery = '';
 let opdTrendChartInstance = null;
 let opdDiagChartInstance = null;
-let opdAgeChartInstance = null;
-let opdDeptChartInstance = null;
+
+// =====================================================
+// Fullscreen + Zoom setup for all charts
+// =====================================================
+
+// Register chartjs-plugin-zoom for zoom/pan in fullscreen mode
+(function registerZoomPlugin() {
+    const zoomPlugin = window.ChartZoom || window.chartjsPluginZoom;
+    if (zoomPlugin && Chart && typeof Chart.register === 'function') {
+        try {
+            Chart.register(zoomPlugin);
+            // Set global zoom defaults so all charts get zoom/pan
+            Chart.defaults.plugins.zoom = {
+                zoom: {
+                    wheel: { enabled: true, speed: 0.05 },
+                    drag: { enabled: true, mode: 'xy' },
+                    pinch: { enabled: true },
+                    mode: 'xy'
+                },
+                pan: {
+                    enabled: true,
+                    mode: 'xy'
+                }
+            };
+        } catch (e) {
+            console.warn('Chart zoom plugin registration failed:', e);
+        }
+    }
+})();
+
+// Track which canvases already have fullscreen buttons attached
+const fullscreenSetupDone = new Set();
+
+/**
+ * Adds a fullscreen toggle button + zoom controls to a chart container.
+ * Call once per chart after initial creation.
+ * @param {string} canvasId - The canvas element ID
+ */
+function setupChartFullscreen(canvasId) {
+    if (fullscreenSetupDone.has(canvasId)) return;
+    fullscreenSetupDone.add(canvasId);
+
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const visualContainer = canvas.closest('.visual-container');
+    const panelActions = visualContainer?.querySelector('.panel-actions');
+    if (!visualContainer || !panelActions) return;
+
+    // ---- Fullscreen button ----
+    const fsBtn = document.createElement('button');
+    fsBtn.className = 'fullscreen-btn';
+    fsBtn.title = 'ขยายเต็มจอ';
+    fsBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+    panelActions.appendChild(fsBtn);
+
+    // ---- Zoom controls (shown only in fullscreen) ----
+    const zoomControls = document.createElement('div');
+    zoomControls.className = 'zoom-controls';
+    zoomControls.style.display = 'none';
+    zoomControls.innerHTML = [
+        '<span class="fullscreen-indicator"><i class="fa-solid fa-up-down-left-right"></i> ลากเพื่อเลื่อน, Scroll เพื่อซูม</span>',
+        '<button class="zoom-btn" data-action="zoomIn" title="ซูมเข้า"><i class="fa-solid fa-plus"></i></button>',
+        '<button class="zoom-btn" data-action="zoomOut" title="ซูมออก"><i class="fa-solid fa-minus"></i></button>',
+        '<button class="zoom-btn" data-action="resetZoom" title="รีเซ็ตมุมมอง"><i class="fa-solid fa-rotate-left"></i> รีเซ็ต</button>',
+        '<button class="exit-fullscreen-btn" title="ออกจากโหมดเต็มจอ"><i class="fa-solid fa-compress"></i> ออกจากโหมดเต็มจอ</button>'
+    ].join('');
+    panelActions.appendChild(zoomControls);
+
+    // ---- Zoom button handlers ----
+    zoomControls.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const chart = Chart.getChart(canvas);
+        if (!chart) return;
+
+        switch (btn.dataset.action) {
+            case 'zoomIn':
+                chart.zoom(1.3);
+                break;
+            case 'zoomOut':
+                chart.zoom(0.7);
+                break;
+            case 'resetZoom':
+                chart.resetZoom();
+                break;
+        }
+    });
+
+    // ---- Toggle fullscreen ----
+    function enterFullscreen() {
+        visualContainer.classList.add('chart-fullscreen');
+        fsBtn.style.display = 'none';
+        zoomControls.style.display = 'flex';
+
+        const chart = Chart.getChart(canvas);
+        if (chart) chart.resize();
+        document.body.style.overflow = 'hidden';
+    }
+
+    function exitFullscreen() {
+        visualContainer.classList.remove('chart-fullscreen');
+        fsBtn.style.display = '';
+        zoomControls.style.display = 'none';
+
+        const chart = Chart.getChart(canvas);
+        if (chart) chart.resize();
+        document.body.style.overflow = '';
+    }
+
+    fsBtn.addEventListener('click', enterFullscreen);
+
+    zoomControls.querySelector('.exit-fullscreen-btn').addEventListener('click', exitFullscreen);
+
+    // Escape key exits fullscreen
+    document.addEventListener('keydown', function onEsc(e) {
+        if (e.key === 'Escape' && visualContainer.classList.contains('chart-fullscreen')) {
+            exitFullscreen();
+        }
+    });
+}
 
 // Distinct color palette for MDCs (Tailwind-like vibrant palette)
 const mdcColors = [
@@ -195,8 +312,6 @@ function resizeAllCharts() {
     if (itemsTrendChartInstance) itemsTrendChartInstance.resize();
     if (opdTrendChartInstance) opdTrendChartInstance.resize();
     if (opdDiagChartInstance) opdDiagChartInstance.resize();
-    if (opdAgeChartInstance) opdAgeChartInstance.resize();
-    if (opdDeptChartInstance) opdDeptChartInstance.resize();
 }
 
 // Setup event listeners for tab switching, themes, sorting, searching
@@ -638,13 +753,11 @@ function loadAllData() {
     let itemsLoaded = false;
     let opdLoaded = false;
     let opdDiagLoaded = false;
-    let opdDeptLoaded = false;
-    let opdAgeLoaded = false;
     let opdLocLoaded = false;
 
     function checkAllLoaded() {
         if (cmiLoaded && transferLoaded && itemsLoaded && opdLoaded &&
-            opdDiagLoaded && opdDeptLoaded && opdAgeLoaded && opdLocLoaded) {
+            opdDiagLoaded && opdLocLoaded) {
             onAllDataReady();
         }
     }
@@ -747,40 +860,6 @@ function loadAllData() {
         .catch(err => {
             console.error('Error loading OPD diag data:', err);
             opdDiagLoaded = true;
-            checkAllLoaded();
-        });
-
-    // Fetch OPD Department Summary data
-    fetch('api/opd/dept-summary')
-        .then(res => {
-            if (!res.ok) throw new Error('Failed to load OPD dept data');
-            return res.json();
-        })
-        .then(data => {
-            opdDeptCache = data;
-            opdDeptLoaded = true;
-            checkAllLoaded();
-        })
-        .catch(err => {
-            console.error('Error loading OPD dept data:', err);
-            opdDeptLoaded = true;
-            checkAllLoaded();
-        });
-
-    // Fetch OPD Age Group Summary data
-    fetch('api/opd/age-summary')
-        .then(res => {
-            if (!res.ok) throw new Error('Failed to load OPD age data');
-            return res.json();
-        })
-        .then(data => {
-            opdAgeCache = data;
-            opdAgeLoaded = true;
-            checkAllLoaded();
-        })
-        .catch(err => {
-            console.error('Error loading OPD age data:', err);
-            opdAgeLoaded = true;
             checkAllLoaded();
         });
 
@@ -957,6 +1036,15 @@ function onAllDataReady() {
     
     // Render default CMI tab
     updateCMIDashboard();
+
+    // Setup fullscreen + zoom for all chart canvases
+    const chartCanvasIds = [
+        'cmiBubbleChart', 'cmiMdcTrendChart',
+        'fundMainChart', 'fundTrendChart',
+        'itemsGroupChart', 'itemsTrendChart',
+        'opdTrendChart', 'opdDiagChart'
+    ];
+    chartCanvasIds.forEach(id => setupChartFullscreen(id));
 }
 
 // -----------------------------------------------------------------------------
@@ -2974,9 +3062,6 @@ const opdDiagTypeLabels = {
     '5': 'Procedure (หัตถการ)'
 };
 
-// Age group order for sorting
-const ageGroupOrder = ['0-14 ปี', '15-29 ปี', '30-44 ปี', '45-59 ปี', '60-74 ปี', '75+ ปี', 'ไม่ระบุ'];
-
 function initializeOpdFilters() {
     // 1. Years
     const uniqueYears = [...new Set(opdRawData.map(row => row.byear))].sort((a, b) => b - a);
@@ -3257,34 +3342,10 @@ function filterDiagData() {
     });
 }
 
-function filterDeptData() {
-    return opdDeptCache.filter(row => {
-        if (!selectedOpdYears.has(row.byear)) return false;
-        if (!selectedOpdMonths.has(row.month_visit)) return false;
-        if (!selectedOpdSex.has(row.sex)) return false;
-        if (selectedOpdChangwat !== 'all' && row.changwat !== selectedOpdChangwat) return false;
-        if (selectedOpdAmphur !== 'all' && row.amphur !== selectedOpdAmphur) return false;
-        return true;
-    });
-}
-
-function filterAgeData() {
-    return opdAgeCache.filter(row => {
-        if (!selectedOpdYears.has(row.byear)) return false;
-        if (!selectedOpdMonths.has(row.month_visit)) return false;
-        if (!selectedOpdSex.has(row.sex)) return false;
-        if (selectedOpdChangwat !== 'all' && row.changwat !== selectedOpdChangwat) return false;
-        if (selectedOpdAmphur !== 'all' && row.amphur !== selectedOpdAmphur) return false;
-        return true;
-    });
-}
-
 // ---- Main Update Function ----
 function updateOpdDashboard() {
     const filtered = getFilteredOpdData();
     const diagData = filterDiagData();
-    const deptData = filterDeptData();
-    const ageData = filterAgeData();
 
     // KPIs
     let totalVisits = 0, totalAgeWeightedSum = 0, maleVisits = 0, femaleVisits = 0;
@@ -3308,8 +3369,6 @@ function updateOpdDashboard() {
     // Charts
     renderOpdTrendChart(filtered);
     renderOpdDiagChart(diagData);
-    renderOpdAgeChart(ageData);
-    renderOpdDeptChart(deptData);
 
     // Latest data badge
     const maxYear = [...selectedOpdYears].sort((a,b)=>b-a)[0];
@@ -3431,127 +3490,6 @@ function renderOpdDiagChart(data) {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: c => ` จำนวนครั้ง: ${c.raw.toLocaleString()} ครั้ง`
-                    }
-                }
-            }
-        }
-    });
-}
-
-// ---- Chart 3: Age Group Distribution ----
-function renderOpdAgeChart(data) {
-    const canvas = document.getElementById('opdAgeChart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (opdAgeChartInstance) opdAgeChartInstance.destroy();
-
-    const grouped = {};
-    data.forEach(row => {
-        const ag = row.age_group || 'ไม่ระบุ';
-        grouped[ag] = (grouped[ag] || 0) + row.visit_count;
-    });
-
-    const isDark = document.body.classList.contains('dark-mode');
-    const textColor = isDark ? '#9ca3af' : '#64748b';
-
-    // Sort by ageGroupOrder
-    const labels = ageGroupOrder.filter(g => grouped[g]);
-    const values = labels.map(g => grouped[g]);
-    const colors = ['#06b6d4','#3b82f6','#6366f1','#f59e0b','#f97316','#ef4444','#94a3b8'];
-
-    if (labels.length === 0) {
-        opdAgeChartInstance = new Chart(ctx, {
-            type: 'bar', data: { datasets: [] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'ไม่มีข้อมูล', color: textColor } } }
-        });
-        return;
-    }
-
-    opdAgeChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'จำนวนครั้ง (ครั้ง)',
-                data: values,
-                backgroundColor: colors.slice(0, labels.length),
-                borderRadius: 4
-            }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: {
-                y: { beginAtZero: true, ticks: { color: textColor, callback: v => v.toLocaleString() } },
-                x: { ticks: { color: textColor, font: { size: 10 } } }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: c => ` จำนวนครั้ง: ${c.raw.toLocaleString()} ครั้ง`
-                    }
-                }
-            }
-        }
-    });
-}
-
-// ---- Chart 4: Top Departments ----
-function renderOpdDeptChart(data) {
-    const canvas = document.getElementById('opdDeptChart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (opdDeptChartInstance) opdDeptChartInstance.destroy();
-
-    const grouped = {};
-    data.forEach(row => {
-        const dept = row.department || 'ไม่ระบุ';
-        grouped[dept] = (grouped[dept] || 0) + row.visit_count;
-    });
-
-    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 10);
-    // Shorten long department names
-    const labels = sorted.map(e => e[0].length > 20 ? e[0].slice(0, 18) + '...' : e[0]);
-    const values = sorted.map(e => e[1]);
-    // Keep full name for tooltip
-    const fullNames = sorted.map(e => e[0]);
-
-    const isDark = document.body.classList.contains('dark-mode');
-    const gridColor = isDark ? '#243049' : '#e2e8f0';
-    const textColor = isDark ? '#9ca3af' : '#64748b';
-
-    if (labels.length === 0) {
-        opdDeptChartInstance = new Chart(ctx, {
-            type: 'bar', data: { datasets: [] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'ไม่มีข้อมูล', color: textColor } } }
-        });
-        return;
-    }
-
-    opdDeptChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'จำนวนครั้ง (ครั้ง)',
-                data: values,
-                backgroundColor: '#10b981',
-                borderRadius: 4
-            }]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true, maintainAspectRatio: false,
-            scales: {
-                x: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, callback: v => v.toLocaleString() } },
-                y: { grid: { display: false }, ticks: { color: textColor, font: { size: 10 } } }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        title: c => fullNames[c[0].dataIndex] || c[0].label,
                         label: c => ` จำนวนครั้ง: ${c.raw.toLocaleString()} ครั้ง`
                     }
                 }
