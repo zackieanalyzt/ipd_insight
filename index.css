@@ -1727,9 +1727,14 @@ body.dark-mode .chart-fullscreen {
 }
 
 .chart-fullscreen .chart-wrapper {
-    flex: 1 !important;
-    height: auto !important;
-    min-height: 300px;
+    flex: 1;
+    min-width: 200px;
+    min-height: 200px;
+    max-width: 100%;
+    max-height: 100%;
+    resize: both;
+    overflow: auto;
+    align-self: center;
 }
 
 .chart-fullscreen .chart-wrapper canvas {
@@ -1737,14 +1742,14 @@ body.dark-mode .chart-fullscreen {
     height: 100% !important;
 }
 
-/* Zoom control bar shown in fullscreen */
-.zoom-controls {
+/* Size controls bar shown in fullscreen */
+.size-controls {
     display: flex;
     align-items: center;
     gap: 0.35rem;
 }
 
-.zoom-controls .zoom-btn {
+.size-controls .size-btn {
     background: none;
     border: 1px solid var(--border-color);
     color: var(--text-secondary);
@@ -1759,20 +1764,67 @@ body.dark-mode .chart-fullscreen {
     white-space: nowrap;
 }
 
-.zoom-controls .zoom-btn:hover {
+.size-controls .size-btn:hover {
     background-color: var(--primary-light);
     color: var(--primary);
     border-color: var(--primary);
 }
 
-body.dark-mode .zoom-controls .zoom-btn:hover {
+body.dark-mode .size-controls .size-btn:hover {
     background-color: rgba(255, 255, 255, 0.08);
     color: var(--primary);
     border-color: var(--primary);
 }
 
-.zoom-controls .zoom-btn i {
+.size-controls .size-btn i {
     font-size: 0.75rem;
+}
+
+/* Size slider */
+.size-slider-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.size-slider {
+    width: 100px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border-color);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.size-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--bg-secondary);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.size-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--bg-secondary);
+    cursor: pointer;
+}
+
+.size-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 2.8rem;
+    text-align: center;
 }
 
 /* Exit fullscreen button */

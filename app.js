@@ -61,123 +61,157 @@ let opdTrendChartInstance = null;
 let opdDiagChartInstance = null;
 
 // =====================================================
-// Fullscreen + Zoom setup for all charts
+// Fullscreen + Resize display area — Template for all charts
 // =====================================================
 
-// Register chartjs-plugin-zoom for zoom/pan in fullscreen mode
-(function registerZoomPlugin() {
-    const zoomPlugin = window.ChartZoom || window.chartjsPluginZoom;
-    if (zoomPlugin && Chart && typeof Chart.register === 'function') {
-        try {
-            Chart.register(zoomPlugin);
-            // Set global zoom defaults so all charts get zoom/pan
-            Chart.defaults.plugins.zoom = {
-                zoom: {
-                    wheel: { enabled: true, speed: 0.05 },
-                    drag: { enabled: true, mode: 'xy' },
-                    pinch: { enabled: true },
-                    mode: 'xy'
-                },
-                pan: {
-                    enabled: true,
-                    mode: 'xy'
-                }
-            };
-        } catch (e) {
-            console.warn('Chart zoom plugin registration failed:', e);
-        }
-    }
-})();
-
-// Track which canvases already have fullscreen buttons attached
-const fullscreenSetupDone = new Set();
-
 /**
- * Adds a fullscreen toggle button + zoom controls to a chart container.
- * Call once per chart after initial creation.
- * @param {string} canvasId - The canvas element ID
+ * Auto-setup fullscreen + resize for all chart containers (.visual-container).
+ * Scans the DOM for canvases inside .visual-container and adds:
+ *   - Fullscreen toggle button 🗖
+ *   - Size slider + +/- buttons (25%-200%)
+ *   - CSS resize:both handle on chart-wrapper for drag resizing
+ *
+ * Runs once on page load — any chart added to HTML gets this automatically.
  */
-function setupChartFullscreen(canvasId) {
-    if (fullscreenSetupDone.has(canvasId)) return;
-    fullscreenSetupDone.add(canvasId);
+function setupAllChartFullscreen() {
+    const containers = document.querySelectorAll('.visual-container');
+    containers.forEach(container => {
+        const canvas = container.querySelector('canvas');
+        if (!canvas) return;
+        const canvasId = canvas.id;
+        if (!canvasId) return;
 
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-
-    const visualContainer = canvas.closest('.visual-container');
-    const panelActions = visualContainer?.querySelector('.panel-actions');
-    if (!visualContainer || !panelActions) return;
-
-    // ---- Fullscreen button ----
-    const fsBtn = document.createElement('button');
-    fsBtn.className = 'fullscreen-btn';
-    fsBtn.title = 'ขยายเต็มจอ';
-    fsBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
-    panelActions.appendChild(fsBtn);
-
-    // ---- Zoom controls (shown only in fullscreen) ----
-    const zoomControls = document.createElement('div');
-    zoomControls.className = 'zoom-controls';
-    zoomControls.style.display = 'none';
-    zoomControls.innerHTML = [
-        '<span class="fullscreen-indicator"><i class="fa-solid fa-up-down-left-right"></i> ลากเพื่อเลื่อน, Scroll เพื่อซูม</span>',
-        '<button class="zoom-btn" data-action="zoomIn" title="ซูมเข้า"><i class="fa-solid fa-plus"></i></button>',
-        '<button class="zoom-btn" data-action="zoomOut" title="ซูมออก"><i class="fa-solid fa-minus"></i></button>',
-        '<button class="zoom-btn" data-action="resetZoom" title="รีเซ็ตมุมมอง"><i class="fa-solid fa-rotate-left"></i> รีเซ็ต</button>',
-        '<button class="exit-fullscreen-btn" title="ออกจากโหมดเต็มจอ"><i class="fa-solid fa-compress"></i> ออกจากโหมดเต็มจอ</button>'
-    ].join('');
-    panelActions.appendChild(zoomControls);
-
-    // ---- Zoom button handlers ----
-    zoomControls.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-action]');
-        if (!btn) return;
-        const chart = Chart.getChart(canvas);
-        if (!chart) return;
-
-        switch (btn.dataset.action) {
-            case 'zoomIn':
-                chart.zoom(1.3);
-                break;
-            case 'zoomOut':
-                chart.zoom(0.7);
-                break;
-            case 'resetZoom':
-                chart.resetZoom();
-                break;
+        // Get or create panel-actions
+        let panelHeader = container.querySelector('.panel-header');
+        if (!panelHeader) return;
+        let panelActions = panelHeader.querySelector('.panel-actions');
+        if (!panelActions) {
+            panelActions = document.createElement('div');
+            panelActions.className = 'panel-actions';
+            panelHeader.appendChild(panelActions);
         }
-    });
 
-    // ---- Toggle fullscreen ----
-    function enterFullscreen() {
-        visualContainer.classList.add('chart-fullscreen');
-        fsBtn.style.display = 'none';
-        zoomControls.style.display = 'flex';
+        const chartWrapper = canvas.closest('.chart-wrapper');
+        if (!chartWrapper) return;
 
-        const chart = Chart.getChart(canvas);
-        if (chart) chart.resize();
-        document.body.style.overflow = 'hidden';
-    }
+        // ---- Fullscreen toggle button ----
+        const fsBtn = document.createElement('button');
+        fsBtn.className = 'fullscreen-btn';
+        fsBtn.title = 'ขยายเต็มจอ';
+        fsBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+        panelActions.appendChild(fsBtn);
 
-    function exitFullscreen() {
-        visualContainer.classList.remove('chart-fullscreen');
-        fsBtn.style.display = '';
-        zoomControls.style.display = 'none';
+        // ---- Size controls (shown only in fullscreen) ----
+        const sizeControls = document.createElement('div');
+        sizeControls.className = 'size-controls';
+        sizeControls.style.display = 'none';
+        sizeControls.innerHTML = [
+            '<span class="fullscreen-indicator"><i class="fa-solid fa-arrows-up-down-left-right"></i> ปรับขนาดพื้นที่แสดงผล</span>',
+            '<button class="size-btn" data-action="sizeOut" title="ย่อลง"><i class="fa-solid fa-minus"></i></button>',
+            '<div class="size-slider-wrapper">',
+            '  <input type="range" class="size-slider" min="25" max="200" value="100" step="5">',
+            '  <span class="size-label">100%</span>',
+            '</div>',
+            '<button class="size-btn" data-action="sizeIn" title="ขยายขึ้น"><i class="fa-solid fa-plus"></i></button>',
+            '<button class="size-btn" data-action="sizeReset" title="รีเซ็ตขนาด"><i class="fa-solid fa-rotate-left"></i> 100%</button>',
+            '<button class="exit-fullscreen-btn" title="ออกจากโหมดเต็มจอ"><i class="fa-solid fa-compress"></i> ออกจากโหมดเต็มจอ</button>'
+        ].join('');
+        panelActions.appendChild(sizeControls);
 
-        const chart = Chart.getChart(canvas);
-        if (chart) chart.resize();
-        document.body.style.overflow = '';
-    }
+        // ---- References ----
+        const sizeSlider = sizeControls.querySelector('.size-slider');
+        const sizeLabel = sizeControls.querySelector('.size-label');
+        const wrapperParent = chartWrapper.parentElement;
+        let baseW = 0, baseH = 0, isFullscreen = false;
 
-    fsBtn.addEventListener('click', enterFullscreen);
-
-    zoomControls.querySelector('.exit-fullscreen-btn').addEventListener('click', exitFullscreen);
-
-    // Escape key exits fullscreen
-    document.addEventListener('keydown', function onEsc(e) {
-        if (e.key === 'Escape' && visualContainer.classList.contains('chart-fullscreen')) {
-            exitFullscreen();
+        function resetSize() {
+            chartWrapper.style.width = '';
+            chartWrapper.style.height = '';
+            chartWrapper.style.flex = '';
+            sizeSlider.value = 100;
+            sizeLabel.textContent = '100%';
+            const chart = Chart.getChart(canvas);
+            if (chart) chart.resize();
         }
+
+        function applySizePct(pct) {
+            if (!isFullscreen) return;
+            const w = Math.round(baseW * pct / 100);
+            const h = Math.round(baseH * pct / 100);
+            chartWrapper.style.width = w + 'px';
+            chartWrapper.style.height = h + 'px';
+            chartWrapper.style.flex = 'none';
+            sizeSlider.value = pct;
+            sizeLabel.textContent = pct + '%';
+            const chart = Chart.getChart(canvas);
+            if (chart) chart.resize();
+        }
+
+        sizeSlider.addEventListener('input', () => {
+            applySizePct(parseInt(sizeSlider.value));
+        });
+
+        sizeControls.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            switch (btn.dataset.action) {
+                case 'sizeIn': {
+                    let pct = Math.min(200, parseInt(sizeSlider.value) + 10);
+                    sizeSlider.value = pct;
+                    applySizePct(pct);
+                    break;
+                }
+                case 'sizeOut': {
+                    let pct = Math.max(25, parseInt(sizeSlider.value) - 10);
+                    sizeSlider.value = pct;
+                    applySizePct(pct);
+                    break;
+                }
+                case 'sizeReset':
+                    resetSize();
+                    break;
+            }
+        });
+
+        function enterFullscreen() {
+            container.classList.add('chart-fullscreen');
+            fsBtn.style.display = 'none';
+            sizeControls.style.display = 'flex';
+            isFullscreen = true;
+
+            requestAnimationFrame(() => {
+                const rect = wrapperParent.getBoundingClientRect();
+                const header = container.querySelector('.panel-header');
+                const headerH = header ? header.getBoundingClientRect().height : 0;
+                baseW = rect.width;
+                baseH = rect.height - headerH;
+                resetSize();
+                const chart = Chart.getChart(canvas);
+                if (chart) chart.resize();
+            });
+
+            document.body.style.overflow = 'hidden';
+        }
+
+        function exitFullscreen() {
+            container.classList.remove('chart-fullscreen');
+            fsBtn.style.display = '';
+            sizeControls.style.display = 'none';
+            isFullscreen = false;
+            resetSize();
+            document.body.style.overflow = '';
+            const chart = Chart.getChart(canvas);
+            if (chart) chart.resize();
+        }
+
+        fsBtn.addEventListener('click', enterFullscreen);
+        sizeControls.querySelector('.exit-fullscreen-btn').addEventListener('click', exitFullscreen);
+
+        document.addEventListener('keydown', function onEsc(e) {
+            if (e.key === 'Escape' && container.classList.contains('chart-fullscreen')) {
+                exitFullscreen();
+            }
+        });
     });
 }
 
@@ -1037,14 +1071,8 @@ function onAllDataReady() {
     // Render default CMI tab
     updateCMIDashboard();
 
-    // Setup fullscreen + zoom for all chart canvases
-    const chartCanvasIds = [
-        'cmiBubbleChart', 'cmiMdcTrendChart',
-        'fundMainChart', 'fundTrendChart',
-        'itemsGroupChart', 'itemsTrendChart',
-        'opdTrendChart', 'opdDiagChart'
-    ];
-    chartCanvasIds.forEach(id => setupChartFullscreen(id));
+    // Auto-setup fullscreen + resize for ALL chart containers (template)
+    setupAllChartFullscreen();
 }
 
 // -----------------------------------------------------------------------------
