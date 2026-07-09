@@ -103,6 +103,7 @@ const monthNamesThai = {
 const loadingOverlay = document.getElementById('loading');
 const resetFiltersBtn = document.getElementById('reset-filters');
 const themeToggleBtn = document.getElementById('theme-toggle');
+const reloadDataBtn = document.getElementById('btn-reload-data');
 const sidebarToggleBtn = document.getElementById('sidebar-toggle');
 const sidebarResizer = document.getElementById('sidebar-resizer');
 const sidebarElement = document.querySelector('aside.sidebar');
@@ -296,7 +297,29 @@ function setupEventListeners() {
 
     // Theme toggle
     themeToggleBtn.addEventListener('click', toggleTheme);
-    
+
+    // Manual CSV reload button
+    if (reloadDataBtn) {
+        reloadDataBtn.addEventListener('click', () => {
+            reloadDataBtn.classList.add('reload-spinning');
+            fetch('/api/reload', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        // Reload all data from server
+                        loadAllData();
+                    }
+                    reloadDataBtn.classList.remove('reload-spinning');
+                })
+                .catch(err => {
+                    console.error('Reload failed:', err);
+                    reloadDataBtn.classList.remove('reload-spinning');
+                    hideLoading();
+                    alert('โหลดข้อมูลใหม่ล้มเหลว กรุณาลองใหม่อีกครั้ง');
+                });
+        });
+    }
+
     // Tab switching
     document.querySelectorAll('.portal-tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {

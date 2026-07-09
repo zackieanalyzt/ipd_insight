@@ -148,6 +148,10 @@ header {
     border-color: var(--primary);
 }
 
+.reload-spinning i {
+    animation: spin 0.8s linear infinite;
+}
+
 /* Dashboard Container Layout */
 .dashboard-container {
     display: flex;

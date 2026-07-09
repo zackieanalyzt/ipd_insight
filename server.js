@@ -370,13 +370,15 @@ function loadCSVDataSources() {
         year_visit: parseInt(row.year_visit) || 0,
         month_visit: row.month_visit ? row.month_visit.toString().padStart(2, '0') : '',
         sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
+        changwat: row.changwat ? row.changwat.trim() : 'ไม่ระบุ',
         amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
         district: row.district ? row.district.trim() : 'ไม่ระบุ',
         ins_type: row.ins_type ? row.ins_type.trim() : 'ไม่ระบุ',
+        diag_code: row.diag_code ? row.diag_code.trim() : 'ไม่ระบุ',
         diag_type: row.diag_type ? row.diag_type.trim() : 'ไม่ระบุ',
         visit_count: parseInt(row.visit_count) || 0,
-        sum_age: parseInt(row.sum_age) || 0
-	    })).filter(row => row.byear > 0 && row.visit_count > 0);
+        sum_age: parseInt(row.age) || 0   // CSV column is 'age' but internally we keep sum_age
+    })).filter(row => row.byear > 0 && row.visit_count > 0);
 	    console.log(`[${new Date().toISOString()}] Loaded ${opdFilename}: ${opdCache.length} rows`);
 
 	    // 5. Load OPD Diag Summary Data
@@ -445,6 +447,46 @@ function loadCSVDataSources() {
     console.log(`[${new Date().toISOString()}] All data sources loaded into memory in ${duration}s`);
 }
 
+// Clear all CSV caches (force reload on next read)
+function clearAllCaches() {
+    cmiCache = [];
+    transfersCache = [];
+    itemsCache = [];
+    opdCache = [];
+    opdDiagCache = [];
+    opdDeptCache = [];
+    opdAgeCache = [];
+    opdLocCache = [];
+}
+
+// Watch CSV files for changes & reload automatically
+function startCSVWatcher() {
+    const csvFiles = [
+        'ipd_cmi.csv',
+        'fundtransfer.csv',
+        'items_summary_aggregated.csv',
+        'opd_visit_summary.csv',
+        'opd_diag_summary.csv',
+        'opd_dept_summary.csv',
+        'opd_age_summary.csv',
+        'opd_location_summary.csv'
+    ];
+
+    csvFiles.forEach(file => {
+        const filePath = path.join(__dirname, file);
+        if (!fs.existsSync(filePath)) return;
+
+        fs.watchFile(filePath, { interval: 5000 }, (curr, prev) => {
+            if (curr.mtimeMs !== prev.mtimeMs) {
+                console.log(`[${new Date().toISOString()}] Detected change in ${file}, reloading...`);
+                clearAllCaches();
+                loadCSVDataSources();
+            }
+        });
+    });
+    console.log(`[${new Date().toISOString()}] CSV file watcher started (polling every 5s)`);
+}
+
 // Middleware to log requests
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -468,6 +510,14 @@ app.get('/api/status', (req, res) => {
         db_connected: currentMode === 'db',
         host: config.database ? config.database.host : null
     });
+});
+
+// API: Manual reload all CSV data
+app.post('/api/reload', (req, res) => {
+    console.log(`[${new Date().toISOString()}] Manual reload triggered by user.`);
+    clearAllCaches();
+    loadCSVDataSources();
+    res.json({ success: true, message: 'CSV data reloaded successfully.' });
 });
 
 // API: Get CMI data
@@ -560,4 +610,6 @@ app.listen(port, () => {
     
     // Initialize Database and heartbeat monitor
     initializeDatabase();
+    // Start CSV file watcher for auto-reload on file changes
+    startCSVWatcher();
 });
