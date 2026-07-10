@@ -208,9 +208,11 @@ async function queryDatabase(type) {
                 year_visit: parseInt(row.year_visit) || 0,
                 month_visit: row.month_visit ? row.month_visit.toString().padStart(2, '0') : '',
                 sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
+                changwat: row.changwat ? row.changwat.trim() : 'ไม่ระบุ',
                 amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
                 district: row.district ? row.district.trim() : 'ไม่ระบุ',
                 ins_type: row.ins_type ? row.ins_type.trim() : 'ไม่ระบุ',
+                diag_code: row.diag_code ? row.diag_code.trim() : 'ไม่ระบุ',
                 diag_type: row.diag_type ? row.diag_type.trim() : 'ไม่ระบุ',
                 visit_count: parseInt(row.visit_count) || 0,
                 sum_age: parseInt(row.sum_age) || 0
