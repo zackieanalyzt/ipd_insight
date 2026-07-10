@@ -1872,3 +1872,32 @@ body.dark-mode .exit-fullscreen-btn:hover {
     align-items: center;
     gap: 0.35rem;
 }
+
+
+/* Gridstack Overrides */
+.grid-stack-item-content {
+    background-color: transparent !important; /* let inner card show background */
+}
+
+/* Ensure our cards fill the grid items */
+.grid-stack-item-content .kpi-card, 
+.grid-stack-item-content .visual-container, 
+.grid-stack-item-content .breakdown-card, 
+.grid-stack-item-content .details-container {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+}
+
+/* Make chart wrapper fill remaining flex space inside visual-container */
+.visual-container .chart-wrapper {
+    height: auto !important;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Tables inside details-container should be scrollable */
+.details-container .table-wrapper {
+    flex: 1;
+    min-height: 0;
+}

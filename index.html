@@ -1,1013 +1,848 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบรายงานข้อมูลสุขภาพและงบประมาณโรงพยาบาล</title>
-    <!-- Stylesheet -->
-    <link rel="stylesheet" href="index.css">
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-</head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ระบบรายงานข้อมูลสุขภาพและงบประมาณโรงพยาบาล</title>
+<!-- Stylesheet -->
+<link href="index.css" rel="stylesheet"/>
+<!-- FontAwesome Icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+<link href="https://cdn.jsdelivr.net/npm/gridstack@11.1.1/dist/gridstack.min.css" rel="stylesheet"/></head>
 <body>
-
-    <!-- Loading Screen -->
-    <div id="loading" class="loading-overlay">
-        <div class="spinner"></div>
-        <p>กำลังโหลดและวิเคราะห์ข้อมูลระบบงาน...</p>
-    </div>
-
-    <!-- Header Section -->
-    <header>
-        <div class="header-title-area">
-            <button id="sidebar-toggle" class="sidebar-toggle-btn" title="ซ่อน/แสดง แถบตัวกรอง">
-                <i class="fa-solid fa-bars"></i>
+<!-- Loading Screen -->
+<div class="loading-overlay" id="loading">
+<div class="spinner"></div>
+<p>กำลังโหลดและวิเคราะห์ข้อมูลระบบงาน...</p>
+</div>
+<!-- Header Section -->
+<header>
+<div class="header-title-area">
+<button class="sidebar-toggle-btn" id="sidebar-toggle" title="ซ่อน/แสดง แถบตัวกรอง">
+<i class="fa-solid fa-bars"></i>
+</button>
+<i class="fa-solid fa-square-poll-vertical header-icon"></i>
+<div>
+<h1>ระบบรายงานบริหารจัดการสาธารณสุข</h1>
+<p>วิเคราะห์ดัชนีผู้ป่วยใน (CMI) และระบบโอนเงินค่าบริการทางการแพทย์ สปสช.</p>
+</div>
+</div>
+<!-- Portal Tabs Navigation -->
+<nav class="portal-tabs">
+<button class="portal-tab-btn active" data-tab="cmi">
+<i class="fa-solid fa-chart-line"></i> ประสิทธิภาพ CMI
             </button>
-            <i class="fa-solid fa-square-poll-vertical header-icon"></i>
-            <div>
-                <h1>ระบบรายงานบริหารจัดการสาธารณสุข</h1>
-                <p>วิเคราะห์ดัชนีผู้ป่วยใน (CMI) และระบบโอนเงินค่าบริการทางการแพทย์ สปสช.</p>
-            </div>
-        </div>
-
-        <!-- Portal Tabs Navigation -->
-        <nav class="portal-tabs">
-            <button class="portal-tab-btn active" data-tab="cmi">
-                <i class="fa-solid fa-chart-line"></i> ประสิทธิภาพ CMI
+<button class="portal-tab-btn" data-tab="transfer">
+<i class="fa-solid fa-money-bill-transfer"></i> รายรับเงินโอน สปสช.
             </button>
-            <button class="portal-tab-btn" data-tab="transfer">
-                <i class="fa-solid fa-money-bill-transfer"></i> รายรับเงินโอน สปสช.
+<button class="portal-tab-btn" data-tab="items">
+<i class="fa-solid fa-file-invoice-dollar"></i> วิเคราะห์รายการบริการ
             </button>
-            <button class="portal-tab-btn" data-tab="items">
-                <i class="fa-solid fa-file-invoice-dollar"></i> วิเคราะห์รายการบริการ
+<button class="portal-tab-btn" data-tab="opd">
+<i class="fa-solid fa-hospital"></i> วิเคราะห์ผู้ป่วยนอก (OPD)
             </button>
-            <button class="portal-tab-btn" data-tab="opd">
-                <i class="fa-solid fa-hospital"></i> วิเคราะห์ผู้ป่วยนอก (OPD)
+</nav>
+<div class="header-actions">
+<div class="data-source-badge" id="data-source-badge">
+<span class="indicator-dot"></span>
+<span class="source-text" id="data-source-text">ตรวจสอบสถานะ...</span>
+</div>
+<button class="theme-toggle-btn" id="btn-reload-data" title="โหลดข้อมูล CSV ใหม่ (Re-load)">
+<i class="fa-solid fa-arrows-rotate"></i>
+</button>
+<button class="theme-toggle-btn" id="theme-toggle" title="เปลี่ยนโหมดสี">
+<i class="fa-solid fa-moon"></i>
+</button>
+</div>
+</header>
+<!-- Connection Status Banner -->
+<div class="status-banner hidden" id="connection-status-banner">
+<div class="status-banner-content">
+<span class="status-banner-text">
+<i class="fa-solid fa-triangle-exclamation status-banner-icon"></i>
+<span id="status-banner-message">ขณะนี้ระบบกำลังใช้ข้อมูลสำรองจากไฟล์ .csv เนื่องจากหลุดการเชื่อมต่อจากฐานข้อมูลหลัก (ข้อมูลอาจจะไม่เป็นปัจจุบัน)</span>
+</span>
+<button class="reconnect-refresh-btn hidden" id="btn-reconnect-refresh">
+<i class="fa-solid fa-arrows-rotate"></i> โหลดข้อมูลใหม่จาก Database
             </button>
-        </nav>
-
-        <div class="header-actions">
-            <div id="data-source-badge" class="data-source-badge">
-                <span class="indicator-dot"></span>
-                <span id="data-source-text" class="source-text">ตรวจสอบสถานะ...</span>
-            </div>
-            <button id="btn-reload-data" class="theme-toggle-btn" title="โหลดข้อมูล CSV ใหม่ (Re-load)">
-                <i class="fa-solid fa-arrows-rotate"></i>
+</div>
+</div>
+<!-- Main Container -->
+<div class="dashboard-container">
+<!-- Sidebar Filters -->
+<aside class="sidebar">
+<div class="sidebar-inner">
+<div class="sidebar-title">
+<i class="fa-solid fa-sliders"></i>
+<span>ตัวกรองข้อมูล</span>
+</div>
+<!-- Dashboard 1: CMI Filters -->
+<div class="sidebar-tab-filters active" id="cmi-filters-container">
+<!-- Fiscal Year Filter -->
+<div class="sidebar-section">
+<div class="sidebar-section-header">
+<h3>ปีงบประมาณ (byear)</h3>
+<div class="bulk-select-links">
+<span class="bulk-btn" onclick="bulkSelect('year-filters', true)">ทั้งหมด</span>
+<span class="bulk-divider">|</span>
+<span class="bulk-btn" onclick="bulkSelect('year-filters', false)">เคลียร์</span>
+</div>
+</div>
+<div class="checkbox-group" id="year-filters">
+<p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดปีงบประมาณ...</p>
+</div>
+</div>
+<!-- Scheme Filter -->
+<div class="sidebar-section">
+<div class="sidebar-section-header">
+<h3>สิทธิ์การรักษา (insure_desc)</h3>
+<div class="bulk-select-links">
+<span class="bulk-btn" onclick="bulkSelect('scheme-filters', true)">ทั้งหมด</span>
+<span class="bulk-divider">|</span>
+<span class="bulk-btn" onclick="bulkSelect('scheme-filters', false)">เคลียร์</span>
+</div>
+</div>
+<div class="checkbox-group" id="scheme-filters">
+<p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดสิทธิ์...</p>
+</div>
+</div>
+<!-- Month Filter -->
+<div class="sidebar-section">
+<div class="sidebar-section-header">
+<h3>เดือนที่รับการรักษา</h3>
+<div class="bulk-select-links">
+<span class="bulk-btn" onclick="bulkSelect('cmi-month-filters', true)">ทั้งหมด</span>
+<span class="bulk-divider">|</span>
+<span class="bulk-btn" onclick="bulkSelect('cmi-month-filters', false)">เคลียร์</span>
+</div>
+</div>
+<div class="month-checkbox-grid" id="cmi-month-filters">
+<p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเดือน...</p>
+</div>
+</div>
+<!-- CMI Range Filter -->
+<div class="sidebar-section">
+<h3>ช่วงความซับซ้อน (CMI Range)</h3>
+<div class="range-inputs-container">
+<input class="sidebar-input" id="cmi-min" min="0" placeholder="ต่ำสุด (Min)" step="0.1" type="number"/>
+<span class="range-separator">ถึง</span>
+<input class="sidebar-input" id="cmi-max" min="0" placeholder="สูงสุด (Max)" step="0.1" type="number"/>
+</div>
+</div>
+</div>
+<!-- Dashboard 2: NHSO Fund Transfer Filters -->
+<div class="sidebar-tab-filters" id="transfer-filters-container">
+<!-- Fiscal Year Filter (Transfer) -->
+<div class="sidebar-section">
+<div class="sidebar-section-header">
+<h3>ปีงบประมาณ (byear)</h3>
+<div class="bulk-select-links">
+<span class="bulk-btn" onclick="bulkSelect('transfer-year-filters', true)">ทั้งหมด</span>
+<span class="bulk-divider">|</span>
+<span class="bulk-btn" onclick="bulkSelect('transfer-year-filters', false)">เคลียร์</span>
+</div>
+</div>
+<div class="checkbox-group" id="transfer-year-filters">
+<p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดปีงบประมาณ...</p>
+</div>
+</div>
+<!-- Month Filter -->
+<div class="sidebar-section">
+<div class="sidebar-section-header">
+<h3>เดือนที่โอนเงิน</h3>
+<div class="bulk-select-links">
+<span class="bulk-btn" onclick="bulkSelect('transfer-month-filters', true)">ทั้งหมด</span>
+<span class="bulk-divider">|</span>
+<span class="bulk-btn" onclick="bulkSelect('transfer-month-filters', false)">เคลียร์</span>
+</div>
+</div>
+<div class="month-checkbox-grid" id="transfer-month-filters">
+<p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเดือน...</p>
+</div>
+</div>
+<!-- Fund Search Input -->
+<div class="sidebar-section">
+<h3>ค้นหากองทุน (หลัก/ย่อย)</h3>
+<div class="search-input-wrapper" style="max-width: 100%;">
+<i class="fa-solid fa-magnifying-glass" style="color: var(--text-sidebar-muted);"></i>
+<input class="sidebar-input" id="transfer-fund-search" placeholder="พิมพ์ชื่อกองทุนหลักหรือย่อย..." style="padding-left: 2.2rem;" type="text"/>
+</div>
+</div>
+<!-- Main Fund Dropdown Filter -->
+<div class="sidebar-section">
+<h3>กองทุนหลัก (main_fund)</h3>
+<div class="select-wrapper">
+<select class="custom-select" id="transfer-fund-select">
+<option value="all">-- ทุกกองทุนหลัก --</option>
+</select>
+</div>
+</div>
+</div>
+<!-- Dashboard 3: Item Summary Filters -->
+<div class="sidebar-tab-filters" id="items-filters-container">
+<!-- Fiscal Year Filter -->
+<div class="sidebar-section">
+<div class="sidebar-section-header">
+<h3>ปีงบประมาณ (byear)</h3>
+<div class="bulk-select-links">
+<span class="bulk-btn" onclick="bulkSelect('items-year-filters', true)">ทั้งหมด</span>
+<span class="bulk-divider">|</span>
+<span class="bulk-btn" onclick="bulkSelect('items-year-filters', false)">เคลียร์</span>
+</div>
+</div>
+<div class="checkbox-group" id="items-year-filters">
+<p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดปีงบประมาณ...</p>
+</div>
+</div>
+<!-- Month Filter -->
+<div class="sidebar-section">
+<div class="sidebar-section-header">
+<h3>เดือนที่ใช้บริการ</h3>
+<div class="bulk-select-links">
+<span class="bulk-btn" onclick="bulkSelect('items-month-filters', true)">ทั้งหมด</span>
+<span class="bulk-divider">|</span>
+<span class="bulk-btn" onclick="bulkSelect('items-month-filters', false)">เคลียร์</span>
+</div>
+</div>
+<div class="month-checkbox-grid" id="items-month-filters">
+<p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเดือน...</p>
+</div>
+</div>
+<!-- Item Search Input -->
+<div class="sidebar-section">
+<h3>ค้นหากลุ่ม/รายการบริการ</h3>
+<div class="search-input-wrapper" style="max-width: 100%;">
+<i class="fa-solid fa-magnifying-glass" style="color: var(--text-sidebar-muted);"></i>
+<input class="sidebar-input" id="items-search" placeholder="พิมพ์ชื่อกลุ่มหรือรายการบริการ..." style="padding-left: 2.2rem;" type="text"/>
+</div>
+</div>
+<!-- Visit Type Dropdown Filter -->
+<div class="sidebar-section">
+<h3>ประเภทผู้ป่วย (visit_type)</h3>
+<div class="select-wrapper">
+<select class="custom-select" id="items-visit-select">
+<option value="all">-- ทุกประเภทผู้ป่วย --</option>
+</select>
+</div>
+</div>
+</div>
+<!-- Dashboard 4: OPD Summary Filters -->
+<div class="sidebar-tab-filters" id="opd-filters-container">
+<!-- Fiscal Year Filter -->
+<div class="sidebar-section">
+<div class="sidebar-section-header">
+<h3>ปีงบประมาณ (byear)</h3>
+<div class="bulk-select-links">
+<span class="bulk-btn" onclick="bulkSelect('opd-year-filters', true)">ทั้งหมด</span>
+<span class="bulk-divider">|</span>
+<span class="bulk-btn" onclick="bulkSelect('opd-year-filters', false)">เคลียร์</span>
+</div>
+</div>
+<div class="checkbox-group" id="opd-year-filters">
+<p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดปีงบประมาณ...</p>
+</div>
+</div>
+<!-- Month Filter -->
+<div class="sidebar-section">
+<div class="sidebar-section-header">
+<h3>เดือนที่รับบริการ</h3>
+<div class="bulk-select-links">
+<span class="bulk-btn" onclick="bulkSelect('opd-month-filters', true)">ทั้งหมด</span>
+<span class="bulk-divider">|</span>
+<span class="bulk-btn" onclick="bulkSelect('opd-month-filters', false)">เคลียร์</span>
+</div>
+</div>
+<div class="month-checkbox-grid" id="opd-month-filters">
+<p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเดือน...</p>
+</div>
+</div>
+<!-- Sex Filter -->
+<div class="sidebar-section">
+<div class="sidebar-section-header">
+<h3>เพศ (sex)</h3>
+<div class="bulk-select-links">
+<span class="bulk-btn" onclick="bulkSelect('opd-sex-filters', true)">ทั้งหมด</span>
+<span class="bulk-divider">|</span>
+<span class="bulk-btn" onclick="bulkSelect('opd-sex-filters', false)">เคลียร์</span>
+</div>
+</div>
+<div class="checkbox-group" id="opd-sex-filters">
+<p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเพศ...</p>
+</div>
+</div>
+<!-- Diag Type Filter -->
+<div class="sidebar-section">
+<div class="sidebar-section-header">
+<h3>ประเภทการวินิจฉัย (diag_type)</h3>
+<div class="bulk-select-links">
+<span class="bulk-btn" onclick="bulkSelect('opd-diagtype-filters', true)">ทั้งหมด</span>
+<span class="bulk-divider">|</span>
+<span class="bulk-btn" onclick="bulkSelect('opd-diagtype-filters', false)">เคลียร์</span>
+</div>
+</div>
+<div class="checkbox-group" id="opd-diagtype-filters">
+<p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดประเภทการวินิจฉัย...</p>
+</div>
+</div>
+<!-- Diag Code Search Filter (NEW) -->
+<div class="sidebar-section">
+<h3>รหัสโรค (diag_code)</h3>
+<div class="search-input-wrapper" style="max-width: 100%;">
+<i class="fa-solid fa-magnifying-glass" style="color: var(--text-sidebar-muted);"></i>
+<input class="sidebar-input" id="opd-diag-search" placeholder="พิมพ์รหัสโรคเช่น I10, E119..." style="padding-left: 2.2rem;" type="text"/>
+</div>
+<div class="selected-tags" id="opd-diag-selected" style="display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; min-height: 0;">
+<!-- Selected diag tags will appear here -->
+</div>
+<div class="autocomplete-list" id="opd-diag-suggestions" style="display: none; max-height: 150px; overflow-y: auto; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; margin-top: 0.25rem;"></div>
+</div>
+<!-- Insurance Type Filter -->
+<div class="sidebar-section">
+<h3>สิทธิ์การรักษา (ins_type)</h3>
+<div class="select-wrapper">
+<select class="custom-select" id="opd-ins-select">
+<option value="all">-- ทุกสิทธิ์การรักษา --</option>
+</select>
+</div>
+</div>
+<!-- Province Filter (NEW) -->
+<div class="sidebar-section">
+<h3>จังหวัด (changwat)</h3>
+<div class="select-wrapper">
+<select class="custom-select" id="opd-changwat-select">
+<option value="all">-- ทุกจังหวัด --</option>
+</select>
+</div>
+</div>
+<!-- Amphur Filter (updated: cascading from changwat) -->
+<div class="sidebar-section">
+<h3>อำเภอ (amphur)</h3>
+<div class="select-wrapper">
+<select class="custom-select" id="opd-amphur-select">
+<option value="all">-- ทุกอำเภอ --</option>
+</select>
+</div>
+</div>
+<!-- District Filter (NEW: cascading from amphur) -->
+<div class="sidebar-section">
+<h3>ตำบล (district)</h3>
+<div class="select-wrapper">
+<select class="custom-select" id="opd-district-select">
+<option value="all">-- ทุกตำบล --</option>
+</select>
+</div>
+</div>
+</div>
+<!-- Reset Filters Button -->
+<button class="btn btn-primary" id="reset-filters" style="margin-top: auto; justify-content: center;">
+<i class="fa-solid fa-rotate-left"></i> รีเซ็ตตัวกรองทั้งหมด
             </button>
-            <button id="theme-toggle" class="theme-toggle-btn" title="เปลี่ยนโหมดสี">
-                <i class="fa-solid fa-moon"></i>
-            </button>
-        </div>
-    </header>
-
-    <!-- Connection Status Banner -->
-    <div id="connection-status-banner" class="status-banner hidden">
-        <div class="status-banner-content">
-            <span class="status-banner-text">
-                <i class="fa-solid fa-triangle-exclamation status-banner-icon"></i>
-                <span id="status-banner-message">ขณะนี้ระบบกำลังใช้ข้อมูลสำรองจากไฟล์ .csv เนื่องจากหลุดการเชื่อมต่อจากฐานข้อมูลหลัก (ข้อมูลอาจจะไม่เป็นปัจจุบัน)</span>
-            </span>
-            <button id="btn-reconnect-refresh" class="reconnect-refresh-btn hidden">
-                <i class="fa-solid fa-arrows-rotate"></i> โหลดข้อมูลใหม่จาก Database
-            </button>
-        </div>
-    </div>
-
-    <!-- Main Container -->
-    <div class="dashboard-container">
-        
-        <!-- Sidebar Filters -->
-        <aside class="sidebar">
-            <div class="sidebar-inner">
-                <div class="sidebar-title">
-                <i class="fa-solid fa-sliders"></i>
-                <span>ตัวกรองข้อมูล</span>
-            </div>
-            
-            <!-- Dashboard 1: CMI Filters -->
-            <div id="cmi-filters-container" class="sidebar-tab-filters active">
-                <!-- Fiscal Year Filter -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">
-                        <h3>ปีงบประมาณ (byear)</h3>
-                        <div class="bulk-select-links">
-                            <span class="bulk-btn" onclick="bulkSelect('year-filters', true)">ทั้งหมด</span>
-                            <span class="bulk-divider">|</span>
-                            <span class="bulk-btn" onclick="bulkSelect('year-filters', false)">เคลียร์</span>
-                        </div>
-                    </div>
-                    <div id="year-filters" class="checkbox-group">
-                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดปีงบประมาณ...</p>
-                    </div>
-                </div>
-                
-                <!-- Scheme Filter -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">
-                        <h3>สิทธิ์การรักษา (insure_desc)</h3>
-                        <div class="bulk-select-links">
-                            <span class="bulk-btn" onclick="bulkSelect('scheme-filters', true)">ทั้งหมด</span>
-                            <span class="bulk-divider">|</span>
-                            <span class="bulk-btn" onclick="bulkSelect('scheme-filters', false)">เคลียร์</span>
-                        </div>
-                    </div>
-                    <div id="scheme-filters" class="checkbox-group">
-                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดสิทธิ์...</p>
-                    </div>
-                </div>
-
-                <!-- Month Filter -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">
-                        <h3>เดือนที่รับการรักษา</h3>
-                        <div class="bulk-select-links">
-                            <span class="bulk-btn" onclick="bulkSelect('cmi-month-filters', true)">ทั้งหมด</span>
-                            <span class="bulk-divider">|</span>
-                            <span class="bulk-btn" onclick="bulkSelect('cmi-month-filters', false)">เคลียร์</span>
-                        </div>
-                    </div>
-                    <div id="cmi-month-filters" class="month-checkbox-grid">
-                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเดือน...</p>
-                    </div>
-                </div>
-
-                <!-- CMI Range Filter -->
-                <div class="sidebar-section">
-                    <h3>ช่วงความซับซ้อน (CMI Range)</h3>
-                    <div class="range-inputs-container">
-                        <input type="number" id="cmi-min" class="sidebar-input" placeholder="ต่ำสุด (Min)" step="0.1" min="0">
-                        <span class="range-separator">ถึง</span>
-                        <input type="number" id="cmi-max" class="sidebar-input" placeholder="สูงสุด (Max)" step="0.1" min="0">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Dashboard 2: NHSO Fund Transfer Filters -->
-            <div id="transfer-filters-container" class="sidebar-tab-filters">
-                <!-- Fiscal Year Filter (Transfer) -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">
-                        <h3>ปีงบประมาณ (byear)</h3>
-                        <div class="bulk-select-links">
-                            <span class="bulk-btn" onclick="bulkSelect('transfer-year-filters', true)">ทั้งหมด</span>
-                            <span class="bulk-divider">|</span>
-                            <span class="bulk-btn" onclick="bulkSelect('transfer-year-filters', false)">เคลียร์</span>
-                        </div>
-                    </div>
-                    <div id="transfer-year-filters" class="checkbox-group">
-                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดปีงบประมาณ...</p>
-                    </div>
-                </div>
-
-                <!-- Month Filter -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">
-                        <h3>เดือนที่โอนเงิน</h3>
-                        <div class="bulk-select-links">
-                            <span class="bulk-btn" onclick="bulkSelect('transfer-month-filters', true)">ทั้งหมด</span>
-                            <span class="bulk-divider">|</span>
-                            <span class="bulk-btn" onclick="bulkSelect('transfer-month-filters', false)">เคลียร์</span>
-                        </div>
-                    </div>
-                    <div id="transfer-month-filters" class="month-checkbox-grid">
-                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเดือน...</p>
-                    </div>
-                </div>
-
-                <!-- Fund Search Input -->
-                <div class="sidebar-section">
-                    <h3>ค้นหากองทุน (หลัก/ย่อย)</h3>
-                    <div class="search-input-wrapper" style="max-width: 100%;">
-                        <i class="fa-solid fa-magnifying-glass" style="color: var(--text-sidebar-muted);"></i>
-                        <input type="text" id="transfer-fund-search" class="sidebar-input" style="padding-left: 2.2rem;" placeholder="พิมพ์ชื่อกองทุนหลักหรือย่อย...">
-                    </div>
-                </div>
-
-                <!-- Main Fund Dropdown Filter -->
-                <div class="sidebar-section">
-                    <h3>กองทุนหลัก (main_fund)</h3>
-                    <div class="select-wrapper">
-                        <select id="transfer-fund-select" class="custom-select">
-                            <option value="all">-- ทุกกองทุนหลัก --</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Dashboard 3: Item Summary Filters -->
-            <div id="items-filters-container" class="sidebar-tab-filters">
-                <!-- Fiscal Year Filter -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">
-                        <h3>ปีงบประมาณ (byear)</h3>
-                        <div class="bulk-select-links">
-                            <span class="bulk-btn" onclick="bulkSelect('items-year-filters', true)">ทั้งหมด</span>
-                            <span class="bulk-divider">|</span>
-                            <span class="bulk-btn" onclick="bulkSelect('items-year-filters', false)">เคลียร์</span>
-                        </div>
-                    </div>
-                    <div id="items-year-filters" class="checkbox-group">
-                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดปีงบประมาณ...</p>
-                    </div>
-                </div>
-
-                <!-- Month Filter -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">
-                        <h3>เดือนที่ใช้บริการ</h3>
-                        <div class="bulk-select-links">
-                            <span class="bulk-btn" onclick="bulkSelect('items-month-filters', true)">ทั้งหมด</span>
-                            <span class="bulk-divider">|</span>
-                            <span class="bulk-btn" onclick="bulkSelect('items-month-filters', false)">เคลียร์</span>
-                        </div>
-                    </div>
-                    <div id="items-month-filters" class="month-checkbox-grid">
-                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเดือน...</p>
-                    </div>
-                </div>
-
-                <!-- Item Search Input -->
-                <div class="sidebar-section">
-                    <h3>ค้นหากลุ่ม/รายการบริการ</h3>
-                    <div class="search-input-wrapper" style="max-width: 100%;">
-                        <i class="fa-solid fa-magnifying-glass" style="color: var(--text-sidebar-muted);"></i>
-                        <input type="text" id="items-search" class="sidebar-input" style="padding-left: 2.2rem;" placeholder="พิมพ์ชื่อกลุ่มหรือรายการบริการ...">
-                    </div>
-                </div>
-
-                <!-- Visit Type Dropdown Filter -->
-                <div class="sidebar-section">
-                    <h3>ประเภทผู้ป่วย (visit_type)</h3>
-                    <div class="select-wrapper">
-                        <select id="items-visit-select" class="custom-select">
-                            <option value="all">-- ทุกประเภทผู้ป่วย --</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Dashboard 4: OPD Summary Filters -->
-            <div id="opd-filters-container" class="sidebar-tab-filters">
-                <!-- Fiscal Year Filter -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">
-                        <h3>ปีงบประมาณ (byear)</h3>
-                        <div class="bulk-select-links">
-                            <span class="bulk-btn" onclick="bulkSelect('opd-year-filters', true)">ทั้งหมด</span>
-                            <span class="bulk-divider">|</span>
-                            <span class="bulk-btn" onclick="bulkSelect('opd-year-filters', false)">เคลียร์</span>
-                        </div>
-                    </div>
-                    <div id="opd-year-filters" class="checkbox-group">
-                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดปีงบประมาณ...</p>
-                    </div>
-                </div>
-
-                <!-- Month Filter -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">
-                        <h3>เดือนที่รับบริการ</h3>
-                        <div class="bulk-select-links">
-                            <span class="bulk-btn" onclick="bulkSelect('opd-month-filters', true)">ทั้งหมด</span>
-                            <span class="bulk-divider">|</span>
-                            <span class="bulk-btn" onclick="bulkSelect('opd-month-filters', false)">เคลียร์</span>
-                        </div>
-                    </div>
-                    <div id="opd-month-filters" class="month-checkbox-grid">
-                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเดือน...</p>
-                    </div>
-                </div>
-
-                <!-- Sex Filter -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">
-                        <h3>เพศ (sex)</h3>
-                        <div class="bulk-select-links">
-                            <span class="bulk-btn" onclick="bulkSelect('opd-sex-filters', true)">ทั้งหมด</span>
-                            <span class="bulk-divider">|</span>
-                            <span class="bulk-btn" onclick="bulkSelect('opd-sex-filters', false)">เคลียร์</span>
-                        </div>
-                    </div>
-                    <div id="opd-sex-filters" class="checkbox-group">
-                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเพศ...</p>
-                    </div>
-                </div>
-
-                <!-- Diag Type Filter -->
-                <div class="sidebar-section">
-                    <div class="sidebar-section-header">
-                        <h3>ประเภทการวินิจฉัย (diag_type)</h3>
-                        <div class="bulk-select-links">
-                            <span class="bulk-btn" onclick="bulkSelect('opd-diagtype-filters', true)">ทั้งหมด</span>
-                            <span class="bulk-divider">|</span>
-                            <span class="bulk-btn" onclick="bulkSelect('opd-diagtype-filters', false)">เคลียร์</span>
-                        </div>
-                    </div>
-                    <div id="opd-diagtype-filters" class="checkbox-group">
-                        <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดประเภทการวินิจฉัย...</p>
-                    </div>
-                </div>
-
-                <!-- Diag Code Search Filter (NEW) -->
-                <div class="sidebar-section">
-                    <h3>รหัสโรค (diag_code)</h3>
-                    <div class="search-input-wrapper" style="max-width: 100%;">
-                        <i class="fa-solid fa-magnifying-glass" style="color: var(--text-sidebar-muted);"></i>
-                        <input type="text" id="opd-diag-search" class="sidebar-input" style="padding-left: 2.2rem;" placeholder="พิมพ์รหัสโรคเช่น I10, E119...">
-                    </div>
-                    <div id="opd-diag-selected" class="selected-tags" style="display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; min-height: 0;">
-                        <!-- Selected diag tags will appear here -->
-                    </div>
-                    <div id="opd-diag-suggestions" class="autocomplete-list" style="display: none; max-height: 150px; overflow-y: auto; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; margin-top: 0.25rem;"></div>
-                </div>
-
-                <!-- Insurance Type Filter -->
-                <div class="sidebar-section">
-                    <h3>สิทธิ์การรักษา (ins_type)</h3>
-                    <div class="select-wrapper">
-                        <select id="opd-ins-select" class="custom-select">
-                            <option value="all">-- ทุกสิทธิ์การรักษา --</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Province Filter (NEW) -->
-                <div class="sidebar-section">
-                    <h3>จังหวัด (changwat)</h3>
-                    <div class="select-wrapper">
-                        <select id="opd-changwat-select" class="custom-select">
-                            <option value="all">-- ทุกจังหวัด --</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Amphur Filter (updated: cascading from changwat) -->
-                <div class="sidebar-section">
-                    <h3>อำเภอ (amphur)</h3>
-                    <div class="select-wrapper">
-                        <select id="opd-amphur-select" class="custom-select">
-                            <option value="all">-- ทุกอำเภอ --</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- District Filter (NEW: cascading from amphur) -->
-                <div class="sidebar-section">
-                    <h3>ตำบล (district)</h3>
-                    <div class="select-wrapper">
-                        <select id="opd-district-select" class="custom-select">
-                            <option value="all">-- ทุกตำบล --</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-
-
-            <!-- Reset Filters Button -->
-            <button id="reset-filters" class="btn btn-primary" style="margin-top: auto; justify-content: center;">
-                <i class="fa-solid fa-rotate-left"></i> รีเซ็ตตัวกรองทั้งหมด
-            </button>
-            </div>
-        </aside>
-
-        <!-- Sidebar Resizer -->
-        <div class="sidebar-resizer" id="sidebar-resizer" title="ลากเพื่อปรับขนาด, ดับเบิ้ลคลิกเพื่อ ย่อ/ขยายสุด">
-            <div class="sidebar-resizer-line"></div>
-        </div>
-
-        <!-- Content Area -->
-        <main class="main-content">
-            
-            <!-- DASHBOARD 1: IPD CMI ANALYSIS CONTENT -->
-            <div id="cmi-dashboard-content" class="portal-tab-content active">
-                
-                <!-- KPI Cards -->
-                <div class="kpi-container">
-                    <!-- Total Inpatients -->
-                    <div class="kpi-card" id="kpi-total-volume">
-                        <div class="kpi-header">
-                            <span>จำนวนผู้ป่วยในทั้งหมด</span>
-                            <i class="fa-solid fa-hospital-user kpi-icon" style="color: var(--primary);"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-total-volume" style="margin: 0.5rem 0 0 0;">0</div>
-                            <span id="badge-total-volume" class="kpi-change-badge" style="display: none;"></span>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-user-tag"></i>
-                            <span>ราย (Case Volume)</span>
-                        </div>
-                    </div>
-
-                    <!-- Weighted CMI -->
-                    <div class="kpi-card" id="kpi-avg-cmi">
-                        <div class="kpi-header">
-                            <span>ความซับซ้อนเฉลี่ย (Weighted CMI)</span>
-                            <i class="fa-solid fa-stethoscope kpi-icon" style="color: var(--scheme-sss);"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-avg-cmi" style="margin: 0.5rem 0 0 0;">0.0000</div>
-                            <span id="badge-avg-cmi" class="kpi-change-badge" style="display: none;"></span>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-gauge-high"></i>
-                            <span>Case Mix Index</span>
-                        </div>
-                    </div>
-
-                    <!-- Total AdjRw Burden -->
-                    <div class="kpi-card" id="kpi-total-adjrw">
-                        <div class="kpi-header">
-                            <span>ภาระงานสะสมรวม (Sum AdjRw)</span>
-                            <i class="fa-solid fa-weight-hanging kpi-icon" style="color: var(--scheme-csmbs);"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-total-adjrw" style="margin: 0.5rem 0 0 0;">0.00</div>
-                            <span id="badge-total-adjrw" class="kpi-change-badge" style="display: none;"></span>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-calculator"></i>
-                            <span>ค่าน้ำหนักสัมพัทธ์ปรับตามวันนอน</span>
-                        </div>
-                    </div>
-
-                    <!-- Top MDC Burden -->
-                    <div class="kpi-card" id="kpi-top-burden">
-                        <div class="kpi-header">
-                            <span>กลุ่มโรคที่มีภาระสูงสุด</span>
-                            <i class="fa-solid fa-virus-covid kpi-icon" style="color: var(--scheme-other);"></i>
-                        </div>
-                        <div class="kpi-value" id="val-top-burden" style="font-size: 1.15rem; font-weight: 700; height: 2.2rem; display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-arrow-trend-up"></i>
-                            <span id="val-top-burden-amount">0.00 AdjRw</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CMI Visual Grid (Charts + Breakdown) -->
-                <div class="cmi-visual-grid" style="margin-top: 1.5rem;">
-                    
-                    <!-- Visualization Panel -->
-                    <div class="visual-container" style="margin: 0;">
-                        <div class="panel-header">
-                            <div class="panel-title">
-                                <i class="fa-solid fa-circle-dot" style="color: var(--primary);"></i>
-                                <span>ความสัมพันธ์ระหว่างปริมาณผู้ป่วย ความซับซ้อน (CMI) และภาระงาน (Bubble Size = sum_adjrw)</span>
-                                <span id="cmi-scatter-latest" class="latest-data-badge"></span>
-                            </div>
-                            <div class="panel-actions">
-                                <button id="chart-zoom-reset" class="btn" title="รีเซ็ตการย่อขยาย">
-                                    <i class="fa-solid fa-expand"></i> รีเซ็ตมุมมอง
+</div>
+</aside>
+<!-- Sidebar Resizer -->
+<div class="sidebar-resizer" id="sidebar-resizer" title="ลากเพื่อปรับขนาด, ดับเบิ้ลคลิกเพื่อ ย่อ/ขยายสุด">
+<div class="sidebar-resizer-line"></div>
+</div>
+<!-- Content Area -->
+<main class="main-content">
+<!-- DASHBOARD 1: IPD CMI ANALYSIS CONTENT -->
+<div class="portal-tab-content active" id="cmi-dashboard-content"><div class="grid-stack" id="grid-cmi"><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-total-volume" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>จำนวนผู้ป่วยในทั้งหมด</span>
+<i class="fa-solid fa-hospital-user kpi-icon" style="color: var(--primary);"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-total-volume" style="margin: 0.5rem 0 0 0;">0</div>
+<span class="kpi-change-badge" id="badge-total-volume" style="display: none;"></span>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-user-tag"></i>
+<span>ราย (Case Volume)</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-avg-cmi" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>ความซับซ้อนเฉลี่ย (Weighted CMI)</span>
+<i class="fa-solid fa-stethoscope kpi-icon" style="color: var(--scheme-sss);"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-avg-cmi" style="margin: 0.5rem 0 0 0;">0.0000</div>
+<span class="kpi-change-badge" id="badge-avg-cmi" style="display: none;"></span>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-gauge-high"></i>
+<span>Case Mix Index</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-total-adjrw" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>ภาระงานสะสมรวม (Sum AdjRw)</span>
+<i class="fa-solid fa-weight-hanging kpi-icon" style="color: var(--scheme-csmbs);"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-total-adjrw" style="margin: 0.5rem 0 0 0;">0.00</div>
+<span class="kpi-change-badge" id="badge-total-adjrw" style="display: none;"></span>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-calculator"></i>
+<span>ค่าน้ำหนักสัมพัทธ์ปรับตามวันนอน</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-top-burden" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>กลุ่มโรคที่มีภาระสูงสุด</span>
+<i class="fa-solid fa-virus-covid kpi-icon" style="color: var(--scheme-other);"></i>
+</div>
+<div class="kpi-value" id="val-top-burden" style="font-size: 1.15rem; font-weight: 700; height: 2.2rem; display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-arrow-trend-up"></i>
+<span id="val-top-burden-amount">0.00 AdjRw</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="8"><div class="grid-stack-item-content"><div class="visual-container" style="width: 100%; height: 100%">
+<div class="panel-header">
+<div class="panel-title">
+<i class="fa-solid fa-circle-dot" style="color: var(--primary);"></i>
+<span>ความสัมพันธ์ระหว่างปริมาณผู้ป่วย ความซับซ้อน (CMI) และภาระงาน (Bubble Size = sum_adjrw)</span>
+<span class="latest-data-badge" id="cmi-scatter-latest"></span>
+</div>
+<div class="panel-actions">
+<button class="btn" id="chart-zoom-reset" title="รีเซ็ตการย่อขยาย">
+<i class="fa-solid fa-expand"></i> รีเซ็ตมุมมอง
                                 </button>
+</div>
+</div>
+<!-- Chart Wrapper -->
+<div class="chart-wrapper">
+<canvas id="cmiBubbleChart"></canvas>
+</div>
+<!-- Legend Descriptions -->
+<div class="scheme-legend">
+<div style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; width: 100%;">
+<i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> แต่ละจุดแสดงถึงกลุ่มโรค (MDC) ขนาดของจุดสะท้อนภาระงานสะสมรวม (sum of AdjRw) และสีสุ่มแยกต่างกันตามกลุ่มโรค
                             </div>
-                        </div>
-                        
-                        <!-- Chart Wrapper -->
-                        <div class="chart-wrapper">
-                            <canvas id="cmiBubbleChart"></canvas>
-                        </div>
-                        
-                        <!-- Legend Descriptions -->
-                        <div class="scheme-legend">
-                            <div style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; width: 100%;">
-                                <i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> แต่ละจุดแสดงถึงกลุ่มโรค (MDC) ขนาดของจุดสะท้อนภาระงานสะสมรวม (sum of AdjRw) และสีสุ่มแยกต่างกันตามกลุ่มโรค
-                            </div>
-                        </div>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="4"><div class="grid-stack-item-content"><div class="breakdown-card" style="width: 100%; height: 100%">
+<div class="breakdown-title">
+<i class="fa-solid fa-hospital"></i>
+<span>สัดส่วนเคสผ่าตัด vs เคสอายุรกรรม</span>
+</div>
+<!-- 1. Case Volume Section -->
+<div class="breakdown-section">
+<div class="breakdown-label">
+<span>สัดส่วนจำนวนผู้ป่วย (Case Volume)</span>
+</div>
+<div class="proportion-bar">
+<div class="bar-segment sur" id="bar-volume-sur" style="width: 0%"></div>
+<div class="bar-segment non-sur" id="bar-volume-nonsur" style="width: 0%"></div>
+</div>
+<div class="breakdown-values">
+<div class="value-item">
+<span class="value-dot sur"></span>
+<span>ผ่าตัด (Sur): <strong id="val-volume-sur-pct">0%</strong> (<span id="val-volume-sur-count">0</span>)</span>
+</div>
+<div class="value-item">
+<span class="value-dot non-sur"></span>
+<span>อายุรกรรม (Non-Sur): <strong id="val-volume-nonsur-pct">0%</strong> (<span id="val-volume-nonsur-count">0</span>)</span>
+</div>
+</div>
+</div>
+<!-- 2. AdjRw Burden Section -->
+<div class="breakdown-section">
+<div class="breakdown-label">
+<span>สัดส่วนภาระงานรวม (Sum of AdjRw)</span>
+</div>
+<div class="proportion-bar">
+<div class="bar-segment sur" id="bar-burden-sur" style="width: 0%"></div>
+<div class="bar-segment non-sur" id="bar-burden-nonsur" style="width: 0%"></div>
+</div>
+<div class="breakdown-values">
+<div class="value-item">
+<span class="value-dot sur"></span>
+<span>ผ่าตัด (Sur): <strong id="val-burden-sur-pct">0%</strong> (<span id="val-burden-sur-sum">0.00</span>)</span>
+</div>
+<div class="value-item">
+<span class="value-dot non-sur"></span>
+<span>อายุรกรรม (Non-Sur): <strong id="val-burden-nonsur-pct">0%</strong> (<span id="val-burden-nonsur-sum">0.00</span>)</span>
+</div>
+</div>
+</div>
+<!-- 3. CMI Comparison Section -->
+<div class="breakdown-section" style="margin-top: 0.5rem;">
+<div class="breakdown-label">
+<span>เปรียบเทียบความซับซ้อนเฉลี่ย (Case Mix Index)</span>
+</div>
+<div class="cmi-comparison-container">
+<div class="cmi-comparison-box sur">
+<span class="title">Surgical CMI</span>
+<span class="value" id="val-cmi-sur">0.0000</span>
+</div>
+<div class="cmi-comparison-box non-sur">
+<span class="title">Medical CMI</span>
+<span class="value" id="val-cmi-nonsur">0.0000</span>
+</div>
+</div>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="12"><div class="grid-stack-item-content"><div class="visual-container" style="width: 100%; height: 100%">
+<div class="panel-header">
+<div class="panel-title">
+<i class="fa-solid fa-chart-line" style="color: var(--primary);"></i>
+<span>แนวโน้มจำนวนผู้ป่วยรายเดือนจำแนกตามกลุ่มโรค (MDC Monthly Case Volume Trend)</span>
+<span class="latest-data-badge" id="cmi-trend-latest"></span>
+</div>
+<div class="panel-actions">
+<div class="search-input-wrapper" style="max-width: 250px; margin: 0;">
+<i class="fa-solid fa-magnifying-glass"></i>
+<input class="search-input" id="cmi-mdc-chart-search" placeholder="ค้นหารหัส หรือชื่อกลุ่มโรค MDC..." style="height: 32px; font-size: 0.85rem;" type="text"/>
+</div>
+</div>
+</div>
+<div class="chart-wrapper" style="height: 400px;">
+<canvas id="cmiMdcTrendChart"></canvas>
+</div>
+<div style="font-size: 0.82rem; color: var(--text-secondary); text-align: center;">
+<i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> แสดงแนวโน้มจำนวนผู้ป่วยรายเดือนของกลุ่มโรค 10 อันดับแรก (หรือกลุ่มโรคที่ค้นหา) เรียงตามลำดับเวลาสะสม
                     </div>
-
-                    <!-- Surgical vs Medical Breakdown Card -->
-                    <div class="breakdown-card">
-                        <div class="breakdown-title">
-                            <i class="fa-solid fa-hospital"></i>
-                            <span>สัดส่วนเคสผ่าตัด vs เคสอายุรกรรม</span>
-                        </div>
-
-                        <!-- 1. Case Volume Section -->
-                        <div class="breakdown-section">
-                            <div class="breakdown-label">
-                                <span>สัดส่วนจำนวนผู้ป่วย (Case Volume)</span>
-                            </div>
-                            <div class="proportion-bar">
-                                <div id="bar-volume-sur" class="bar-segment sur" style="width: 0%"></div>
-                                <div id="bar-volume-nonsur" class="bar-segment non-sur" style="width: 0%"></div>
-                            </div>
-                            <div class="breakdown-values">
-                                <div class="value-item">
-                                    <span class="value-dot sur"></span>
-                                    <span>ผ่าตัด (Sur): <strong id="val-volume-sur-pct">0%</strong> (<span id="val-volume-sur-count">0</span>)</span>
-                                </div>
-                                <div class="value-item">
-                                    <span class="value-dot non-sur"></span>
-                                    <span>อายุรกรรม (Non-Sur): <strong id="val-volume-nonsur-pct">0%</strong> (<span id="val-volume-nonsur-count">0</span>)</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 2. AdjRw Burden Section -->
-                        <div class="breakdown-section">
-                            <div class="breakdown-label">
-                                <span>สัดส่วนภาระงานรวม (Sum of AdjRw)</span>
-                            </div>
-                            <div class="proportion-bar">
-                                <div id="bar-burden-sur" class="bar-segment sur" style="width: 0%"></div>
-                                <div id="bar-burden-nonsur" class="bar-segment non-sur" style="width: 0%"></div>
-                            </div>
-                            <div class="breakdown-values">
-                                <div class="value-item">
-                                    <span class="value-dot sur"></span>
-                                    <span>ผ่าตัด (Sur): <strong id="val-burden-sur-pct">0%</strong> (<span id="val-burden-sur-sum">0.00</span>)</span>
-                                </div>
-                                <div class="value-item">
-                                    <span class="value-dot non-sur"></span>
-                                    <span>อายุรกรรม (Non-Sur): <strong id="val-burden-nonsur-pct">0%</strong> (<span id="val-burden-nonsur-sum">0.00</span>)</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 3. CMI Comparison Section -->
-                        <div class="breakdown-section" style="margin-top: 0.5rem;">
-                            <div class="breakdown-label">
-                                <span>เปรียบเทียบความซับซ้อนเฉลี่ย (Case Mix Index)</span>
-                            </div>
-                            <div class="cmi-comparison-container">
-                                <div class="cmi-comparison-box sur">
-                                    <span class="title">Surgical CMI</span>
-                                    <span class="value" id="val-cmi-sur">0.0000</span>
-                                </div>
-                                <div class="cmi-comparison-box non-sur">
-                                    <span class="title">Medical CMI</span>
-                                    <span class="value" id="val-cmi-nonsur">0.0000</span>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-                    
-                </div>
-
-                <!-- CMI MDC Monthly Trend Chart -->
-                <div class="visual-container" style="margin-top: 1.5rem;">
-                    <div class="panel-header">
-                        <div class="panel-title">
-                            <i class="fa-solid fa-chart-line" style="color: var(--primary);"></i>
-                            <span>แนวโน้มจำนวนผู้ป่วยรายเดือนจำแนกตามกลุ่มโรค (MDC Monthly Case Volume Trend)</span>
-                            <span id="cmi-trend-latest" class="latest-data-badge"></span>
-                        </div>
-                        <div class="panel-actions">
-                            <div class="search-input-wrapper" style="max-width: 250px; margin: 0;">
-                                <i class="fa-solid fa-magnifying-glass"></i>
-                                <input type="text" id="cmi-mdc-chart-search" class="search-input" style="height: 32px; font-size: 0.85rem;" placeholder="ค้นหารหัส หรือชื่อกลุ่มโรค MDC...">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="chart-wrapper" style="height: 400px;">
-                        <canvas id="cmiMdcTrendChart"></canvas>
-                    </div>
-                    <div style="font-size: 0.82rem; color: var(--text-secondary); text-align: center;">
-                        <i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> แสดงแนวโน้มจำนวนผู้ป่วยรายเดือนของกลุ่มโรค 10 อันดับแรก (หรือกลุ่มโรคที่ค้นหา) เรียงตามลำดับเวลาสะสม
-                    </div>
-                </div>
-
-                <!-- Detailed Table Section -->
-                <div class="details-container" style="margin-top: 1.5rem;">
-                    <div class="table-header">
-                        <div class="panel-title">
-                            <i class="fa-solid fa-table"></i>
-                            <span>ตารางแสดงข้อมูลสรุปรายกลุ่มโรค (MDC)</span>
-                        </div>
-                        <div class="search-input-wrapper">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" id="table-search" class="search-input" placeholder="ค้นหากลุ่มโรคหรือรหัส MDC...">
-                        </div>
-                        <button id="btn-export-csv" class="btn">
-                            <i class="fa-solid fa-file-csv"></i> ส่งออกข้อมูลเป็น CSV
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="12"><div class="grid-stack-item-content"><div class="details-container" style="width: 100%; height: 100%">
+<div class="table-header">
+<div class="panel-title">
+<i class="fa-solid fa-table"></i>
+<span>ตารางแสดงข้อมูลสรุปรายกลุ่มโรค (MDC)</span>
+</div>
+<div class="search-input-wrapper">
+<i class="fa-solid fa-magnifying-glass"></i>
+<input class="search-input" id="table-search" placeholder="ค้นหากลุ่มโรคหรือรหัส MDC..." type="text"/>
+</div>
+<button class="btn" id="btn-export-csv">
+<i class="fa-solid fa-file-csv"></i> ส่งออกข้อมูลเป็น CSV
                         </button>
-                    </div>
-                    
-                    <!-- Table Wrapper -->
-                    <div class="table-wrapper">
-                        <table id="data-table">
-                            <thead>
-                                <tr>
-                                    <th data-column="mdc">รหัส MDC <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="mdc_desc">กลุ่มโรค (Major Diagnostic Category) <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="total" class="numeric-cell">จำนวนผู้ป่วย (ราย) <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="cmi" class="numeric-cell">ความซับซ้อน (CMI) <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="sum_adjrw" class="numeric-cell">ภาระรวม (AdjRw) <i class="fa-solid fa-sort"></i></th>
-                                </tr>
-                            </thead>
-                            <tbody id="table-body">
-                                <!-- Javascript will populate rows here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-
-            <!-- DASHBOARD 2: NHSO FUND TRANSFER CONTENT -->
-            <div id="transfer-dashboard-content" class="portal-tab-content">
-                
-                <!-- KPI Cards -->
-                <div class="kpi-container">
-                    <!-- Total Received Amount -->
-                    <div class="kpi-card" id="kpi-transfer-received">
-                        <div class="kpi-header">
-                            <span>เงินโอนที่ได้รับจริงสะสม (Net Transferred)</span>
-                            <i class="fa-solid fa-wallet kpi-icon" style="color: #22c55e;"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-transfer-total-received" style="color: #22c55e; margin: 0.5rem 0 0 0;">0.00</div>
-                            <span id="badge-transfer-received" class="kpi-change-badge" style="display: none;"></span>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-baht-sign"></i>
-                            <span>บาท (รวมหักภาษี/ค่าปรับแล้ว)</span>
-                        </div>
-                    </div>
-
-                    <!-- Total Billed Amount -->
-                    <div class="kpi-card" id="kpi-transfer-billed">
-                        <div class="kpi-header">
-                            <span>ยอดเบิกจ่ายสะสม (Total Billed)</span>
-                            <i class="fa-solid fa-file-invoice-dollar kpi-icon" style="color: var(--primary);"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-transfer-total-billed" style="margin: 0.5rem 0 0 0;">0.00</div>
-                            <span id="badge-transfer-billed" class="kpi-change-badge" style="display: none;"></span>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-circle-dollar-to-slot"></i>
-                            <span>บาท (ยอดก่อนปรับ/หักลด)</span>
-                        </div>
-                    </div>
-
-                    <!-- Total Deductions -->
-                    <div class="kpi-card" id="kpi-transfer-deductions">
-                        <div class="kpi-header">
-                            <span>ยอดหักรวม (Deductions & Tax)</span>
-                            <i class="fa-solid fa-percent kpi-icon" style="color: #ef4444;"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-transfer-total-deductions" style="color: #ef4444; margin: 0.5rem 0 0 0;">0.00</div>
-                            <span id="badge-transfer-deductions" class="kpi-change-badge" style="display: none;"></span>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-triangle-exclamation"></i>
-                            <span>บาท (ค่าปรับ ดีเลย์ ภาษี และหักค้ำประกัน)</span>
-                        </div>
-                    </div>
-
-                    <!-- Top Funding Source -->
-                    <div class="kpi-card" id="kpi-transfer-top-fund">
-                        <div class="kpi-header">
-                            <span>กองทุนหลักรายรับสูงสุด</span>
-                            <i class="fa-solid fa-award kpi-icon" style="color: #eab308;"></i>
-                        </div>
-                        <div class="kpi-value" id="val-transfer-top-fund" style="font-size: 1.15rem; font-weight: 700; height: 2.2rem; display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-hand-holding-dollar"></i>
-                            <span id="val-transfer-top-fund-amount">0.00 บาท</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Double Charts Grid Layout -->
-                <div class="transfer-charts-grid" style="margin-top: 1.5rem;">
-                    <!-- Main Fund Bar Chart -->
-                    <div class="visual-container">
-                        <div class="panel-header">
-                            <div class="panel-title">
-                                <i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i>
-                                <span>สัดส่วนเงินโอนสะสมแยกตามกองทุนหลัก (main_fund)</span>
-                                <span id="transfer-main-latest" class="latest-data-badge"></span>
-                            </div>
-                            <div class="panel-actions">
-                                <div class="sort-order-select-wrapper">
-                                    <select id="transfer-fund-sort-select" class="sort-select">
-                                        <option value="desc">เรียงจากมากไปน้อย</option>
-                                        <option value="asc">เรียงจากน้อยไปมาก</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="chart-wrapper">
-                            <canvas id="fundMainChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Monthly Trend Line Chart -->
-                    <div class="visual-container">
-                        <div class="panel-header">
-                            <div class="panel-title">
-                                <i class="fa-solid fa-chart-area" style="color: var(--primary);"></i>
-                                <span>กราฟแนวโน้มยอดเงินโอนรับเข้าสะสมรายเดือน (Transfer Trend)</span>
-                                <span id="transfer-trend-latest" class="latest-data-badge"></span>
-                            </div>
-                            <div class="panel-actions"></div>
-                        </div>
-                        <div class="chart-wrapper">
-                            <canvas id="fundTrendChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Detailed Transfer Table Section -->
-                <div class="details-container" style="margin-top: 1.5rem;">
-                    <div class="table-header">
-                        <div class="panel-title">
-                            <i class="fa-solid fa-table"></i>
-                            <span>ตารางรายละเอียดข้อมูลธุรกรรมการโอนเงินค่าบริการ</span>
-                        </div>
-                        <div class="search-input-wrapper">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" id="transfer-table-search" class="search-input" placeholder="ค้นหากองทุนหลัก/ย่อย/รหัส...">
-                        </div>
-                        <button id="btn-transfer-export-csv" class="btn">
-                            <i class="fa-solid fa-file-csv"></i> ส่งออกข้อมูลเป็น CSV
+</div>
+<!-- Table Wrapper -->
+<div class="table-wrapper">
+<table id="data-table">
+<thead>
+<tr>
+<th data-column="mdc">รหัส MDC <i class="fa-solid fa-sort"></i></th>
+<th data-column="mdc_desc">กลุ่มโรค (Major Diagnostic Category) <i class="fa-solid fa-sort"></i></th>
+<th class="numeric-cell" data-column="total">จำนวนผู้ป่วย (ราย) <i class="fa-solid fa-sort"></i></th>
+<th class="numeric-cell" data-column="cmi">ความซับซ้อน (CMI) <i class="fa-solid fa-sort"></i></th>
+<th class="numeric-cell" data-column="sum_adjrw">ภาระรวม (AdjRw) <i class="fa-solid fa-sort"></i></th>
+</tr>
+</thead>
+<tbody id="table-body">
+<!-- Javascript will populate rows here -->
+</tbody>
+</table>
+</div>
+</div></div></div></div></div>
+<!-- DASHBOARD 2: NHSO FUND TRANSFER CONTENT -->
+<div class="portal-tab-content" id="transfer-dashboard-content"><div class="grid-stack" id="grid-transfer"><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-transfer-received" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>เงินโอนที่ได้รับจริงสะสม (Net Transferred)</span>
+<i class="fa-solid fa-wallet kpi-icon" style="color: #22c55e;"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-transfer-total-received" style="color: #22c55e; margin: 0.5rem 0 0 0;">0.00</div>
+<span class="kpi-change-badge" id="badge-transfer-received" style="display: none;"></span>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-baht-sign"></i>
+<span>บาท (รวมหักภาษี/ค่าปรับแล้ว)</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-transfer-billed" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>ยอดเบิกจ่ายสะสม (Total Billed)</span>
+<i class="fa-solid fa-file-invoice-dollar kpi-icon" style="color: var(--primary);"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-transfer-total-billed" style="margin: 0.5rem 0 0 0;">0.00</div>
+<span class="kpi-change-badge" id="badge-transfer-billed" style="display: none;"></span>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-circle-dollar-to-slot"></i>
+<span>บาท (ยอดก่อนปรับ/หักลด)</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-transfer-deductions" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>ยอดหักรวม (Deductions &amp; Tax)</span>
+<i class="fa-solid fa-percent kpi-icon" style="color: #ef4444;"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-transfer-total-deductions" style="color: #ef4444; margin: 0.5rem 0 0 0;">0.00</div>
+<span class="kpi-change-badge" id="badge-transfer-deductions" style="display: none;"></span>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-triangle-exclamation"></i>
+<span>บาท (ค่าปรับ ดีเลย์ ภาษี และหักค้ำประกัน)</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-transfer-top-fund" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>กองทุนหลักรายรับสูงสุด</span>
+<i class="fa-solid fa-award kpi-icon" style="color: #eab308;"></i>
+</div>
+<div class="kpi-value" id="val-transfer-top-fund" style="font-size: 1.15rem; font-weight: 700; height: 2.2rem; display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-hand-holding-dollar"></i>
+<span id="val-transfer-top-fund-amount">0.00 บาท</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="6"><div class="grid-stack-item-content"><div class="visual-container" style="width: 100%; height: 100%">
+<div class="panel-header">
+<div class="panel-title">
+<i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i>
+<span>สัดส่วนเงินโอนสะสมแยกตามกองทุนหลัก (main_fund)</span>
+<span class="latest-data-badge" id="transfer-main-latest"></span>
+</div>
+<div class="panel-actions">
+<div class="sort-order-select-wrapper">
+<select class="sort-select" id="transfer-fund-sort-select">
+<option value="desc">เรียงจากมากไปน้อย</option>
+<option value="asc">เรียงจากน้อยไปมาก</option>
+</select>
+</div>
+</div>
+</div>
+<div class="chart-wrapper">
+<canvas id="fundMainChart"></canvas>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="6"><div class="grid-stack-item-content"><div class="visual-container" style="width: 100%; height: 100%">
+<div class="panel-header">
+<div class="panel-title">
+<i class="fa-solid fa-chart-area" style="color: var(--primary);"></i>
+<span>กราฟแนวโน้มยอดเงินโอนรับเข้าสะสมรายเดือน (Transfer Trend)</span>
+<span class="latest-data-badge" id="transfer-trend-latest"></span>
+</div>
+<div class="panel-actions"></div>
+</div>
+<div class="chart-wrapper">
+<canvas id="fundTrendChart"></canvas>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="12"><div class="grid-stack-item-content"><div class="details-container" style="width: 100%; height: 100%">
+<div class="table-header">
+<div class="panel-title">
+<i class="fa-solid fa-table"></i>
+<span>ตารางรายละเอียดข้อมูลธุรกรรมการโอนเงินค่าบริการ</span>
+</div>
+<div class="search-input-wrapper">
+<i class="fa-solid fa-magnifying-glass"></i>
+<input class="search-input" id="transfer-table-search" placeholder="ค้นหากองทุนหลัก/ย่อย/รหัส..." type="text"/>
+</div>
+<button class="btn" id="btn-transfer-export-csv">
+<i class="fa-solid fa-file-csv"></i> ส่งออกข้อมูลเป็น CSV
                         </button>
-                    </div>
-                    
-                    <!-- Table Wrapper -->
-                    <div class="table-wrapper">
-                        <table id="transfer-data-table">
-                            <thead>
-                                <tr>
-                                    <th data-column="byear">ปีงบประมาณ <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="month_year">เดือน/ปีโอน <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="main_fund">กองทุนหลัก <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="sub_fund">กองทุนย่อย <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="amount" class="numeric-cell">ยอดเบิก (บาท) <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="deduction" class="numeric-cell">หักปรับ (บาท) <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="transfer_amount" class="numeric-cell">โอนจริง (บาท) <i class="fa-solid fa-sort"></i></th>
-                                </tr>
-                            </thead>
-                            <tbody id="transfer-table-body">
-                                <!-- Javascript will populate rows here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- DASHBOARD 3: MEDICAL SERVICES ITEM SUMMARY CONTENT -->
-            <div id="items-dashboard-content" class="portal-tab-content">
-                <!-- KPI Cards -->
-                <div class="kpi-container">
-                    <!-- Total Quantity -->
-                    <div class="kpi-card" id="kpi-items-quantity">
-                        <div class="kpi-header">
-                            <span>จำนวนบริการทั้งหมด (Total Quantity)</span>
-                            <i class="fa-solid fa-box kpi-icon" style="color: var(--primary);"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-items-total-quantity" style="margin: 0.5rem 0 0 0;">0</div>
-                            <span id="badge-items-quantity" class="kpi-change-badge" style="display: none;"></span>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-calculator"></i>
-                            <span>ชิ้น / ครั้ง / รายการ</span>
-                        </div>
-                    </div>
-
-                    <!-- Total Price -->
-                    <div class="kpi-card" id="kpi-items-price">
-                        <div class="kpi-header">
-                            <span>มูลค่ารวมค่าบริการ (Total Price)</span>
-                            <i class="fa-solid fa-baht-sign kpi-icon" style="color: #22c55e;"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-items-total-price" style="color: #22c55e; margin: 0.5rem 0 0 0;">0.00</div>
-                            <span id="badge-items-price" class="kpi-change-badge" style="display: none;"></span>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-wallet"></i>
-                            <span>บาท</span>
-                        </div>
-                    </div>
-
-                    <!-- Average Unit Price -->
-                    <div class="kpi-card" id="kpi-items-avg-price">
-                        <div class="kpi-header">
-                            <span>มูลค่าเฉลี่ยต่อชิ้น (Avg Unit Price)</span>
-                            <i class="fa-solid fa-tag kpi-icon" style="color: var(--scheme-sss);"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-items-avg-price" style="margin: 0.5rem 0 0 0;">0.00</div>
-                            <span id="badge-items-avg-price" class="kpi-change-badge" style="display: none;"></span>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-hand-holding-dollar"></i>
-                            <span>บาทต่อหน่วยการบริการ</span>
-                        </div>
-                    </div>
-
-                    <!-- Top Service Group -->
-                    <div class="kpi-card" id="kpi-items-top-group">
-                        <div class="kpi-header">
-                            <span>กลุ่มบริการมูลค่าสูงสุด</span>
-                            <i class="fa-solid fa-star kpi-icon" style="color: #eab308;"></i>
-                        </div>
-                        <div class="kpi-value" id="val-items-top-group" style="font-size: 1.15rem; font-weight: 700; height: 2.2rem; display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-arrow-trend-up"></i>
-                            <span id="val-items-top-group-amount">0.00 บาท</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Double Charts Grid Layout -->
-                <div class="transfer-charts-grid" style="margin-top: 1.5rem;">
-                    <!-- Item Group Bar Chart -->
-                    <div class="visual-container">
-                        <div class="panel-header">
-                            <div class="panel-title">
-                                <i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i>
-                                <span>สัดส่วนมูลค่าค่าบริการสะสมแยกตามกลุ่มบริการ (item_group)</span>
-                                <span id="items-group-latest" class="latest-data-badge"></span>
-                            </div>
-                            <div class="panel-actions">
-                                <div class="sort-order-select-wrapper">
-                                    <select id="items-group-sort-select" class="sort-select">
-                                        <option value="desc">เรียงจากมากไปน้อย</option>
-                                        <option value="asc">เรียงจากน้อยไปมาก</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="chart-wrapper">
-                            <canvas id="itemsGroupChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Monthly Trend Line Chart -->
-                    <div class="visual-container">
-                        <div class="panel-header">
-                            <div class="panel-title">
-                                <i class="fa-solid fa-chart-line" style="color: var(--primary);"></i>
-                                <span>กราฟแนวโน้มมูลค่าบริการรายเดือนสะสม (Price Trend)</span>
-                                <span id="items-trend-latest" class="latest-data-badge"></span>
-                            </div>
-                            <div class="panel-actions"></div>
-                        </div>
-                        <div class="chart-wrapper">
-                            <canvas id="itemsTrendChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Detailed Items Table Section -->
-                <div class="details-container" style="margin-top: 1.5rem;">
-                    <div class="table-header">
-                        <div class="panel-title">
-                            <i class="fa-solid fa-table"></i>
-                            <span>ตารางแสดงข้อมูลสรุปการบริการทางการแพทย์</span>
-                        </div>
-                        <div class="search-input-wrapper">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" id="items-table-search" class="search-input" placeholder="ค้นหาตามรายการ/กลุ่มบริการ...">
-                        </div>
-                        <button id="btn-items-export-csv" class="btn">
-                            <i class="fa-solid fa-file-csv"></i> ส่งออกข้อมูลเป็น CSV
+</div>
+<!-- Table Wrapper -->
+<div class="table-wrapper">
+<table id="transfer-data-table">
+<thead>
+<tr>
+<th data-column="byear">ปีงบประมาณ <i class="fa-solid fa-sort"></i></th>
+<th data-column="month_year">เดือน/ปีโอน <i class="fa-solid fa-sort"></i></th>
+<th data-column="main_fund">กองทุนหลัก <i class="fa-solid fa-sort"></i></th>
+<th data-column="sub_fund">กองทุนย่อย <i class="fa-solid fa-sort"></i></th>
+<th class="numeric-cell" data-column="amount">ยอดเบิก (บาท) <i class="fa-solid fa-sort"></i></th>
+<th class="numeric-cell" data-column="deduction">หักปรับ (บาท) <i class="fa-solid fa-sort"></i></th>
+<th class="numeric-cell" data-column="transfer_amount">โอนจริง (บาท) <i class="fa-solid fa-sort"></i></th>
+</tr>
+</thead>
+<tbody id="transfer-table-body">
+<!-- Javascript will populate rows here -->
+</tbody>
+</table>
+</div>
+</div></div></div></div></div>
+<!-- DASHBOARD 3: MEDICAL SERVICES ITEM SUMMARY CONTENT -->
+<div class="portal-tab-content" id="items-dashboard-content"><div class="grid-stack" id="grid-items"><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-items-quantity" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>จำนวนบริการทั้งหมด (Total Quantity)</span>
+<i class="fa-solid fa-box kpi-icon" style="color: var(--primary);"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-items-total-quantity" style="margin: 0.5rem 0 0 0;">0</div>
+<span class="kpi-change-badge" id="badge-items-quantity" style="display: none;"></span>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-calculator"></i>
+<span>ชิ้น / ครั้ง / รายการ</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-items-price" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>มูลค่ารวมค่าบริการ (Total Price)</span>
+<i class="fa-solid fa-baht-sign kpi-icon" style="color: #22c55e;"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-items-total-price" style="color: #22c55e; margin: 0.5rem 0 0 0;">0.00</div>
+<span class="kpi-change-badge" id="badge-items-price" style="display: none;"></span>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-wallet"></i>
+<span>บาท</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-items-avg-price" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>มูลค่าเฉลี่ยต่อชิ้น (Avg Unit Price)</span>
+<i class="fa-solid fa-tag kpi-icon" style="color: var(--scheme-sss);"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-items-avg-price" style="margin: 0.5rem 0 0 0;">0.00</div>
+<span class="kpi-change-badge" id="badge-items-avg-price" style="display: none;"></span>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-hand-holding-dollar"></i>
+<span>บาทต่อหน่วยการบริการ</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-items-top-group" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>กลุ่มบริการมูลค่าสูงสุด</span>
+<i class="fa-solid fa-star kpi-icon" style="color: #eab308;"></i>
+</div>
+<div class="kpi-value" id="val-items-top-group" style="font-size: 1.15rem; font-weight: 700; height: 2.2rem; display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-arrow-trend-up"></i>
+<span id="val-items-top-group-amount">0.00 บาท</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="6"><div class="grid-stack-item-content"><div class="visual-container" style="width: 100%; height: 100%">
+<div class="panel-header">
+<div class="panel-title">
+<i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i>
+<span>สัดส่วนมูลค่าค่าบริการสะสมแยกตามกลุ่มบริการ (item_group)</span>
+<span class="latest-data-badge" id="items-group-latest"></span>
+</div>
+<div class="panel-actions">
+<div class="sort-order-select-wrapper">
+<select class="sort-select" id="items-group-sort-select">
+<option value="desc">เรียงจากมากไปน้อย</option>
+<option value="asc">เรียงจากน้อยไปมาก</option>
+</select>
+</div>
+</div>
+</div>
+<div class="chart-wrapper">
+<canvas id="itemsGroupChart"></canvas>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="6"><div class="grid-stack-item-content"><div class="visual-container" style="width: 100%; height: 100%">
+<div class="panel-header">
+<div class="panel-title">
+<i class="fa-solid fa-chart-line" style="color: var(--primary);"></i>
+<span>กราฟแนวโน้มมูลค่าบริการรายเดือนสะสม (Price Trend)</span>
+<span class="latest-data-badge" id="items-trend-latest"></span>
+</div>
+<div class="panel-actions"></div>
+</div>
+<div class="chart-wrapper">
+<canvas id="itemsTrendChart"></canvas>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="12"><div class="grid-stack-item-content"><div class="details-container" style="width: 100%; height: 100%">
+<div class="table-header">
+<div class="panel-title">
+<i class="fa-solid fa-table"></i>
+<span>ตารางแสดงข้อมูลสรุปการบริการทางการแพทย์</span>
+</div>
+<div class="search-input-wrapper">
+<i class="fa-solid fa-magnifying-glass"></i>
+<input class="search-input" id="items-table-search" placeholder="ค้นหาตามรายการ/กลุ่มบริการ..." type="text"/>
+</div>
+<button class="btn" id="btn-items-export-csv">
+<i class="fa-solid fa-file-csv"></i> ส่งออกข้อมูลเป็น CSV
                         </button>
-                    </div>
-                    
-                    <!-- Table Wrapper -->
-                    <div class="table-wrapper">
-                        <table id="items-data-table">
-                            <thead>
-                                <tr>
-                                    <th data-column="byear">ปีงบประมาณ <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="visit_type">ประเภทผู้ป่วย <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="item_group">กลุ่มบริการ <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="item_common_name">รายการบริการ <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="total_quantity" class="numeric-cell">จำนวน (หน่วย) <i class="fa-solid fa-sort"></i></th>
-                                    <th data-column="total_price" class="numeric-cell">มูลค่ารวม (บาท) <i class="fa-solid fa-sort"></i></th>
-                                </tr>
-                            </thead>
-                            <tbody id="items-table-body">
-                                <!-- Javascript will populate rows here -->
-                            </tbody>
-                        </table>
-                    </div>
-                    <div id="items-table-info" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; margin-top: 0.5rem;"></div>
-                </div>
-            </div>
-
-            <!-- DASHBOARD 4: OPD VISITS SUMMARY CONTENT -->
-            <div id="opd-dashboard-content" class="portal-tab-content">
-                <!-- KPI Cards -->
-                <div class="kpi-container">
-                    <!-- Total Visits -->
-                    <div class="kpi-card" id="kpi-opd-visits">
-                        <div class="kpi-header">
-                            <span>จำนวนครั้งการรับบริการ OPD (Total Visits)</span>
-                            <i class="fa-solid fa-notes-medical kpi-icon" style="color: var(--primary);"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-opd-total-visits" style="margin: 0.5rem 0 0 0;">0</div>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-calculator"></i>
-                            <span>ครั้ง / การรับบริการผู้ป่วยนอก</span>
-                        </div>
-                    </div>
-
-                    <!-- Average Patient Age -->
-                    <div class="kpi-card" id="kpi-opd-age">
-                        <div class="kpi-header">
-                            <span>อายุเฉลี่ยผู้ป่วย (Average Age)</span>
-                            <i class="fa-solid fa-user-clock kpi-icon" style="color: #22c55e;"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-opd-avg-age" style="margin: 0.5rem 0 0 0;">0.00</div>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-hourglass-half"></i>
-                            <span>ปี</span>
-                        </div>
-                    </div>
-
-                    <!-- Female Ratio -->
-                    <div class="kpi-card" id="kpi-opd-female">
-                        <div class="kpi-header">
-                            <span>สัดส่วนผู้หญิง (Female Visits)</span>
-                            <i class="fa-solid fa-venus kpi-icon" style="color: #ec4899;"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-opd-female-pct" style="color: #ec4899; margin: 0.5rem 0 0 0;">0.0%</div>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-venus-mars"></i>
-                            <span id="val-opd-female-count">0 ครั้ง</span>
-                        </div>
-                    </div>
-
-                    <!-- Male Ratio -->
-                    <div class="kpi-card" id="kpi-opd-male">
-                        <div class="kpi-header">
-                            <span>สัดส่วนผู้ชาย (Male Visits)</span>
-                            <i class="fa-solid fa-mars kpi-icon" style="color: #3b82f6;"></i>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                            <div class="kpi-value" id="val-opd-male-pct" style="color: #3b82f6; margin: 0.5rem 0 0 0;">0.0%</div>
-                        </div>
-                        <div class="kpi-meta">
-                            <i class="fa-solid fa-venus-mars"></i>
-                            <span id="val-opd-male-count">0 ครั้ง</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- OPD Charts Grid Layout 1 -->
-                <div class="transfer-charts-grid" style="margin-top: 1.5rem;">
-                    <!-- OPD Monthly Trend Line Chart -->
-                    <div class="visual-container">
-                        <div class="panel-header">
-                            <div class="panel-title">
-                                <i class="fa-solid fa-chart-line" style="color: var(--primary);"></i>
-                                <span>แนวโน้มจำนวนผู้ป่วยนอกรายเดือน (Monthly Visit Trend)</span>
-                                <span id="opd-trend-badge" class="latest-data-badge"></span>
-                            </div>
-                            <div class="panel-actions"></div>
-                        </div>
-                        <div class="chart-wrapper">
-                            <canvas id="opdTrendChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Top Diagnosis Codes Bar Chart -->
-                    <div class="visual-container">
-                        <div class="panel-header">
-                            <div class="panel-title">
-                                <i class="fa-solid fa-disease" style="color: var(--primary);"></i>
-                                <span>รหัสโรค 10 อันดับแรก (Top Diagnosis Codes)</span>
-                            </div>
-                            <div class="panel-actions"></div>
-                        </div>
-                        <div class="chart-wrapper">
-                            <canvas id="opdDiagChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-
-        </main>
-    </div>
-
-    <!-- CDNs -->
-    <!-- PapaParse for CSV parsing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- Application Logic -->
-    
-    <!-- Application Logic -->
-    <script src="app.js"></script>
+</div>
+<!-- Table Wrapper -->
+<div class="table-wrapper">
+<table id="items-data-table">
+<thead>
+<tr>
+<th data-column="byear">ปีงบประมาณ <i class="fa-solid fa-sort"></i></th>
+<th data-column="visit_type">ประเภทผู้ป่วย <i class="fa-solid fa-sort"></i></th>
+<th data-column="item_group">กลุ่มบริการ <i class="fa-solid fa-sort"></i></th>
+<th data-column="item_common_name">รายการบริการ <i class="fa-solid fa-sort"></i></th>
+<th class="numeric-cell" data-column="total_quantity">จำนวน (หน่วย) <i class="fa-solid fa-sort"></i></th>
+<th class="numeric-cell" data-column="total_price">มูลค่ารวม (บาท) <i class="fa-solid fa-sort"></i></th>
+</tr>
+</thead>
+<tbody id="items-table-body">
+<!-- Javascript will populate rows here -->
+</tbody>
+</table>
+</div>
+<div id="items-table-info" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; margin-top: 0.5rem;"></div>
+</div></div></div></div></div>
+<!-- DASHBOARD 4: OPD VISITS SUMMARY CONTENT -->
+<div class="portal-tab-content" id="opd-dashboard-content"><div class="grid-stack" id="grid-opd"><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-opd-visits" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>จำนวนครั้งการรับบริการ OPD (Total Visits)</span>
+<i class="fa-solid fa-notes-medical kpi-icon" style="color: var(--primary);"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-opd-total-visits" style="margin: 0.5rem 0 0 0;">0</div>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-calculator"></i>
+<span>ครั้ง / การรับบริการผู้ป่วยนอก</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-opd-age" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>อายุเฉลี่ยผู้ป่วย (Average Age)</span>
+<i class="fa-solid fa-user-clock kpi-icon" style="color: #22c55e;"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-opd-avg-age" style="margin: 0.5rem 0 0 0;">0.00</div>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-hourglass-half"></i>
+<span>ปี</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-opd-female" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>สัดส่วนผู้หญิง (Female Visits)</span>
+<i class="fa-solid fa-venus kpi-icon" style="color: #ec4899;"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-opd-female-pct" style="color: #ec4899; margin: 0.5rem 0 0 0;">0.0%</div>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-venus-mars"></i>
+<span id="val-opd-female-count">0 ครั้ง</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-opd-male" style="width: 100%; height: 100%">
+<div class="kpi-header">
+<span>สัดส่วนผู้ชาย (Male Visits)</span>
+<i class="fa-solid fa-mars kpi-icon" style="color: #3b82f6;"></i>
+</div>
+<div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+<div class="kpi-value" id="val-opd-male-pct" style="color: #3b82f6; margin: 0.5rem 0 0 0;">0.0%</div>
+</div>
+<div class="kpi-meta">
+<i class="fa-solid fa-venus-mars"></i>
+<span id="val-opd-male-count">0 ครั้ง</span>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="6"><div class="grid-stack-item-content"><div class="visual-container" style="width: 100%; height: 100%">
+<div class="panel-header">
+<div class="panel-title">
+<i class="fa-solid fa-chart-line" style="color: var(--primary);"></i>
+<span>แนวโน้มจำนวนผู้ป่วยนอกรายเดือน (Monthly Visit Trend)</span>
+<span class="latest-data-badge" id="opd-trend-badge"></span>
+</div>
+<div class="panel-actions"></div>
+</div>
+<div class="chart-wrapper">
+<canvas id="opdTrendChart"></canvas>
+</div>
+</div></div></div><div class="grid-stack-item" gs-h="6" gs-w="6"><div class="grid-stack-item-content"><div class="visual-container" style="width: 100%; height: 100%">
+<div class="panel-header">
+<div class="panel-title">
+<i class="fa-solid fa-disease" style="color: var(--primary);"></i>
+<span>รหัสโรค 10 อันดับแรก (Top Diagnosis Codes)</span>
+</div>
+<div class="panel-actions"></div>
+</div>
+<div class="chart-wrapper">
+<canvas id="opdDiagChart"></canvas>
+</div>
+</div></div></div></div></div>
+</main>
+</div>
+<!-- CDNs -->
+<!-- PapaParse for CSV parsing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Application Logic -->
+<!-- Application Logic -->
+<script src="https://cdn.jsdelivr.net/npm/gridstack@11.1.1/dist/gridstack-all.js"></script><script src="app.js"></script>
 </body>
 </html>

@@ -335,6 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     initConnectionStatusHandler();
     setupOpdEventListeners();
+    initGridStack();
 });
 
 function resizeAllCharts() {
@@ -3573,3 +3574,32 @@ function setupOpdEventListeners() {
 
 
 
+
+
+// --- GridStack Integration ---
+let grids = {};
+function initGridStack() {
+    const gridOptions = {
+        column: 12,
+        cellHeight: '80px',
+        margin: '10px',
+        resizable: { handles: 'e, se, s, sw, w, nw, n, ne' }
+    };
+    
+    // Initialize grids for each tab
+    ['cmi', 'transfer', 'items', 'opd'].forEach(tab => {
+        const el = document.querySelector('#grid-' + tab);
+        if (el) {
+            grids[tab] = GridStack.init(gridOptions, el);
+            
+            // Listen to resize stop to redraw charts
+            grids[tab].on('resizestop', function(event, el) {
+                if (typeof resizeAllCharts === 'function') {
+                    resizeAllCharts();
+                }
+                // Trigger window resize for extra safety
+                window.dispatchEvent(new Event('resize'));
+            });
+        }
+    });
+}
