@@ -3350,7 +3350,7 @@ function getFilteredOpdData() {
         if (!selectedOpdSex.has(row.sex)) return false;
         if (!selectedOpdDiagTypes.has(row.diag_type)) return false;
         if (selectedOpdIns !== 'all' && row.ins_type !== selectedOpdIns) return false;
-        // For amphur/district filter: old summary may not have changwat, so only filter via amphur
+        if (selectedOpdChangwat !== 'all' && row.changwat !== selectedOpdChangwat) return false;
         if (selectedOpdAmphur !== 'all' && row.amphur !== selectedOpdAmphur) return false;
         if (selectedOpdDistrict !== 'all' && row.district !== selectedOpdDistrict) return false;
         return true;
@@ -3397,7 +3397,7 @@ function updateOpdDashboard() {
 
     // Charts
     renderOpdTrendChart(filtered);
-    renderOpdDiagChart(diagData);
+    renderOpdDiagChart(filtered);
 
     // Latest data badge
     const maxYear = [...selectedOpdYears].sort((a,b)=>b-a)[0];
@@ -3475,21 +3475,25 @@ function renderOpdDiagChart(data) {
     const ctx = canvas.getContext('2d');
     if (opdDiagChartInstance) opdDiagChartInstance.destroy();
 
-    const grouped = {};
+    const limitSelect = document.getElementById('opd-diag-limit');
+    const limit = limitSelect ? parseInt(limitSelect.value) : 10;
+
+    // 1. Group overall to find Top N codes across all selected years
+    const overallGrouped = {};
     data.forEach(row => {
         const code = row.diag_code || 'ไม่ระบุ';
-        grouped[code] = (grouped[code] || 0) + row.visit_count;
+        overallGrouped[code] = (overallGrouped[code] || 0) + row.visit_count;
     });
 
-    const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]).slice(0, 10);
-    const labels = sorted.map(e => e[0]);
-    const values = sorted.map(e => e[1]);
+    const sortedTop = Object.entries(overallGrouped).sort((a, b) => b[1] - a[1]).slice(0, limit);
+    const labels = sortedTop.map(e => e[0]);
 
     const isDark = document.body.classList.contains('dark-mode');
     const gridColor = isDark ? '#243049' : '#e2e8f0';
     const textColor = isDark ? '#9ca3af' : '#64748b';
+    const tooltipBg = isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)';
 
-    if (labels.length === 0) {
+    if (labels.length === 0 || selectedOpdYears.size === 0) {
         opdDiagChartInstance = new Chart(ctx, {
             type: 'bar', data: { datasets: [] },
             options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'ไม่มีข้อมูล', color: textColor } } }
@@ -3497,29 +3501,94 @@ function renderOpdDiagChart(data) {
         return;
     }
 
+    // 2. Create datasets: one dataset per year, sorted descending so more recent year is on top
+    const activeYears = Array.from(selectedOpdYears).sort((a, b) => a - b);
+    const activeYearsDescending = [...activeYears].reverse();
+    
+    // Function to get color from root vars or fallback
+    const getYearColor = (year, index) => {
+        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+        return colors[index % colors.length];
+    };
+
+    const barDatasets = activeYearsDescending.map((year, index) => {
+        const color = getYearColor(year, index);
+        
+        const dataPoints = labels.map(code => {
+            return data
+                .filter(row => row.byear === year && (row.diag_code || 'ไม่ระบุ') === code)
+                .reduce((sum, row) => sum + row.visit_count, 0);
+        });
+
+        return {
+            label: `ปีงบประมาณ ${year}`,
+            data: dataPoints,
+            backgroundColor: color,
+            borderRadius: 4
+        };
+    });
+
     opdDiagChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
-            datasets: [{
-                label: 'จำนวนครั้ง (ครั้ง)',
-                data: values,
-                backgroundColor: ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316','#84cc16','#6366f1'],
-                borderRadius: 4
-            }]
+            datasets: barDatasets
         },
         options: {
-            indexAxis: 'y',
-            responsive: true, maintainAspectRatio: false,
+            indexAxis: 'y', // Horizontal bar chart
+            responsive: true,
+            maintainAspectRatio: false,
             scales: {
-                x: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, callback: v => v.toLocaleString() } },
-                y: { grid: { display: false }, ticks: { color: textColor, font: { size: 11 } } }
+                x: {
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, font: { family: 'Inter', size: 10 }, callback: v => v.toLocaleString() }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { color: textColor, font: { family: 'Inter', size: 11 } }
+                }
             },
             plugins: {
-                legend: { display: false },
+                legend: {
+                    display: activeYears.length > 1, // Only show legend if multiple years are selected
+                    position: 'bottom',
+                    labels: { color: textColor, font: { family: 'Sarabun', size: 12 }, padding: 20, usePointStyle: true }
+                },
                 tooltip: {
+                    backgroundColor: tooltipBg, titleColor: isDark ? '#ffffff' : '#1e293b', bodyColor: isDark ? '#e2e8f0' : '#475569',
+                    titleFont: { family: 'Sarabun', size: 13, weight: 'bold' }, bodyFont: { family: 'Sarabun', size: 13 },
+                    padding: 12, borderColor: isDark ? '#334155' : '#cbd5e1', borderWidth: 1,
                     callbacks: {
-                        label: c => ` จำนวนครั้ง: ${c.raw.toLocaleString()} ครั้ง`
+                        title: c => `รหัสโรค: ${c[0].label}`,
+                        label: function(context) {
+                            const currentVal = context.raw;
+                            if (currentVal === null || currentVal === undefined) return '';
+                            
+                            let labelText = ` ${context.dataset.label}: ${currentVal.toLocaleString()} ครั้ง`;
+                            
+                            const chart = context.chart;
+                            const dataIndex = context.dataIndex;
+                            const label = context.dataset.label;
+                            const match = label.match(/\d+/);
+                            
+                            if (match) {
+                                const currentYear = parseInt(match[0]);
+                                const prevDataset = chart.data.datasets.find(ds => {
+                                    const dsMatch = ds.label.match(/\d+/);
+                                    return dsMatch && parseInt(dsMatch[0]) === currentYear - 1;
+                                });
+                                if (prevDataset) {
+                                    const prevVal = prevDataset.data[dataIndex];
+                                    if (prevVal !== undefined && prevVal !== null && prevVal > 0) {
+                                        const pctChange = ((currentVal - prevVal) / prevVal) * 100;
+                                        const direction = pctChange > 0 ? 'เพิ่มขึ้น' : (pctChange < 0 ? 'ลดลง' : 'เท่าเดิม');
+                                        const pctText = pctChange !== 0 ? ` ${Math.abs(pctChange).toFixed(1)}%` : '';
+                                        labelText += ` (${direction}${pctText} เทียบกับปี ${prevDataset.label.replace('ปีงบประมาณ ', 'ปี ')})`;
+                                    }
+                                }
+                            }
+                            return labelText;
+                        }
                     }
                 }
             }
@@ -3529,6 +3598,13 @@ function renderOpdDiagChart(data) {
 
 // ---- Event Listeners ----
 function setupOpdEventListeners() {
+
+    const limitSelect = document.getElementById('opd-diag-limit');
+    if (limitSelect) limitSelect.addEventListener('change', updateOpdDashboard);
+    
+    const compareSelect = document.getElementById('opd-diag-compare');
+    if (compareSelect) compareSelect.addEventListener('change', updateOpdDashboard);
+
     // Insurance
     if (opdInsSelect) {
         opdInsSelect.addEventListener('change', (e) => {

@@ -826,9 +826,19 @@
 <div class="panel-header">
 <div class="panel-title">
 <i class="fa-solid fa-disease" style="color: var(--primary);"></i>
-<span>รหัสโรค 10 อันดับแรก (Top Diagnosis Codes)</span>
+<span>รหัสโรคอันดับแรก (Top Diagnosis Codes)</span>
 </div>
-<div class="panel-actions"></div>
+<div class="panel-actions">
+<div style="display: flex; gap: 0.5rem; align-items: center;">
+<select class="sort-select" id="opd-diag-limit" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">
+<option value="5">Top 5</option>
+<option selected="" value="10">Top 10</option>
+<option value="15">Top 15</option>
+<option value="20">Top 20</option>
+</select>
+
+</div>
+</div>
 </div>
 <div class="chart-wrapper">
 <canvas id="opdDiagChart"></canvas>
