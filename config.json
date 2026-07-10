@@ -15,11 +15,17 @@
     "cmi": "ipd_cmi.csv",
     "transfers": "fundtransfer.csv",
     "items": "items_summary_aggregated.csv",
-    "Old":"opd_visit_summary.csv",
+    "opd": "opd_visit_summary.csv",
     "opd_diag": "opd_diag_summary.csv",
     "opd_dept": "opd_dept_summary.csv",
     "opd_age": "opd_age_summary.csv",
     "opd_loc": "opd_location_summary.csv"
+  },
+  "db_tables": {
+    "cmi": "ipd_cmi",
+    "transfers": "fundtransfer",
+    "items": "view_items_summary_aggregated",
+    "opd": "view_opd_visit_summary"
   },
   "failover": {
     "heartbeat_interval_ms": 10000,

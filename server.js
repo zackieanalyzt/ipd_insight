@@ -140,7 +140,8 @@ async function queryDatabase(type) {
     const client = await pool.connect();
     try {
         if (type === 'cmi') {
-            const res = await client.query('SELECT * FROM ipd_cmi');
+            const tableName = config.db_tables && config.db_tables.cmi ? config.db_tables.cmi : 'ipd_cmi';
+            const res = await client.query(`SELECT * FROM ${tableName}`);
             return res.rows.map(row => ({
                 insure_group: row.insure_group,
                 insure_desc: row.insure_desc ? row.insure_desc.trim() : '',
@@ -158,7 +159,8 @@ async function queryDatabase(type) {
                 month: parseInt(row.month) || 0
             })).filter(row => row.byear > 0 && row.total > 0 && row.mdc !== '' && row.insure_desc !== 'รวม');
         } else if (type === 'transfers') {
-            const res = await client.query('SELECT * FROM fundtransfer');
+            const tableName = config.db_tables && config.db_tables.transfers ? config.db_tables.transfers : 'fundtransfer';
+            const res = await client.query(`SELECT * FROM ${tableName}`);
             return res.rows.map(row => {
                 const amount = parseFloat(row.amount) || 0;
                 const deduction = parseFloat(row.deduction) || 0;
@@ -186,7 +188,8 @@ async function queryDatabase(type) {
                 };
             }).filter(row => row.byear > 0 && row.main_fund !== '');
         } else if (type === 'items') {
-            const res = await client.query('SELECT * FROM items_summary_aggregated');
+            const tableName = config.db_tables && config.db_tables.items ? config.db_tables.items : 'view_items_summary_aggregated';
+            const res = await client.query(`SELECT * FROM ${tableName}`);
             return res.rows.map(row => ({
                 visit_type: row.visit_type ? row.visit_type.trim() : 'ไม่ระบุประเภทผู้ป่วย',
                 item_group: row.item_group ? row.item_group.trim() : 'ไม่ระบุกลุ่มบริการ',
@@ -198,21 +201,8 @@ async function queryDatabase(type) {
                 month: row.month ? row.month.toString().padStart(2, '0') : ''
             })).filter(row => row.byear > 0 && row.item_group !== '');
         } else if (type === 'opd') {
-            const res = await client.query(`
-                SELECT 
-                    byear, 
-                    year_visit, 
-                    month_visit, 
-                    sex, 
-                    amphur, 
-                    district, 
-                    ins_type, 
-                    diag_type, 
-                    COUNT(vn) as visit_count, 
-                    SUM(CASE WHEN age ~ '^[0-9\\.]+$' THEN CAST(age AS NUMERIC)::integer ELSE 0 END) as sum_age 
-                FROM opd_visit_partitioned 
-                GROUP BY byear, year_visit, month_visit, sex, amphur, district, ins_type, diag_type
-            `);
+            const tableName = config.db_tables && config.db_tables.opd ? config.db_tables.opd : 'view_opd_visit_summary';
+            const res = await client.query(`SELECT * FROM ${tableName}`);
             return res.rows.map(row => ({
                 byear: parseInt(row.byear) || 0,
                 year_visit: parseInt(row.year_visit) || 0,
@@ -360,7 +350,7 @@ function loadCSVDataSources() {
     console.log(`[${new Date().toISOString()}] Loaded ${itemsFilename}: ${itemsCache.length} rows`);
 
     // 4. Load OPD Summary Data
-    const opdFilename = 'opd_visit_summary.csv';
+    const opdFilename = (config.data_files && config.data_files.opd) || 'opd_visit_summary.csv';
     const opdPath = path.join(__dirname, opdFilename);
     const opdRaw = parseCSVFile(opdPath);
     opdCache = opdRaw.map(row => ({
