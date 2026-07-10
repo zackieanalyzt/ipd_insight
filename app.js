@@ -3659,7 +3659,8 @@ function initGridStack() {
         column: 12,
         cellHeight: '80px',
         margin: '10px',
-        resizable: { handles: 'e, se, s, sw, w, nw, n, ne' }
+        resizable: { handles: 'e, se, s, sw, w, nw, n, ne' },
+        handle: '.kpi-header, .panel-header, .table-header, .breakdown-title'
     };
     
     // Initialize grids for each tab

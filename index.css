@@ -1901,3 +1901,12 @@ body.dark-mode .exit-fullscreen-btn:hover {
     flex: 1;
     min-height: 0;
 }
+
+/* GridStack Drag Handles */
+.kpi-header, .panel-header, .table-header, .breakdown-title {
+    cursor: grab;
+}
+
+.kpi-header:active, .panel-header:active, .table-header:active, .breakdown-title:active {
+    cursor: grabbing;
+}
