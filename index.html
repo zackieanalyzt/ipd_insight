@@ -530,7 +530,125 @@
 </tbody>
 </table>
 </div>
-</div></div></div></div></div>
+</div></div></div></div>
+
+<!-- CMI BENCHMARK COMPARISON SECTION (Risk 5-7 M1 vs Li Hospital) -->
+<div class="cmi-benchmark-section" id="cmi-benchmark-section" style="margin-top: 1.5rem;">
+    <div class="visual-container">
+        <div class="panel-header" style="flex-wrap: wrap; gap: 1rem; align-items: center;">
+            <div class="panel-title">
+                <i class="fa-solid fa-code-compare" style="color: var(--primary);"></i>
+                <span>เปรียบเทียบดัชนี CMI รพ.ลี้ กับโรงพยาบาลกลุ่ม Risk 5-7 (ระดับ M1)</span>
+            </div>
+            <div class="panel-actions" style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center;">
+                <div class="search-input-wrapper" style="max-width: 170px;">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input class="search-input" id="cmi-bench-code-search" placeholder="ค้นหารหัสโรค..." style="height: 34px; font-size: 0.85rem;" type="text"/>
+                </div>
+                <div class="search-input-wrapper" style="max-width: 260px;">
+                    <i class="fa-solid fa-file-signature"></i>
+                    <input class="search-input" id="cmi-bench-desc-search" placeholder="ค้นหาชื่อโรค (Description)..." style="height: 34px; font-size: 0.85rem;" type="text"/>
+                </div>
+                <button class="btn btn-primary" id="btn-export-cmi-bench-csv" title="ส่งออกเปรียบเทียบ CMI เป็น CSV">
+                    <i class="fa-solid fa-file-csv"></i> ส่งออก CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- Multi-Select Checkbox Filter Card -->
+        <div class="bench-filter-card">
+            <!-- Year Checkboxes -->
+            <div class="bench-filter-row">
+                <div class="bench-filter-label-group">
+                    <span class="cmi-bench-label"><i class="fa-solid fa-calendar"></i> ปีจำหน่าย (datedsc):</span>
+                    <span class="bench-bulk-btn" id="btn-bench-year-all">ทั้งหมด</span>
+                    <span style="color: var(--text-sidebar-muted);">|</span>
+                    <span class="bench-bulk-btn" id="btn-bench-year-clear">เคลียร์</span>
+                </div>
+                <div class="bench-checkbox-list" id="cmi-bench-year-checkboxes">
+                    <!-- Dynamic year checkboxes -->
+                </div>
+            </div>
+
+            <!-- Month Checkboxes -->
+            <div class="bench-filter-row">
+                <div class="bench-filter-label-group">
+                    <span class="cmi-bench-label"><i class="fa-solid fa-calendar-days"></i> เดือนจำหน่าย:</span>
+                    <span class="bench-bulk-btn" id="btn-bench-month-all">ทั้งหมด</span>
+                    <span style="color: var(--text-sidebar-muted);">|</span>
+                    <span class="bench-bulk-btn" id="btn-bench-month-clear">เคลียร์</span>
+                </div>
+                <div class="bench-checkbox-list" id="cmi-bench-month-checkboxes">
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="01" checked /> ม.ค. (01)</label>
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="02" checked /> ก.พ. (02)</label>
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="03" checked /> มี.ค. (03)</label>
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="04" checked /> เม.ย. (04)</label>
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="05" checked /> พ.ค. (05)</label>
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="06" checked /> มิ.ย. (06)</label>
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="07" checked /> ก.ค. (07)</label>
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="08" checked /> ส.ค. (08)</label>
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="09" checked /> ก.ย. (09)</label>
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="10" checked /> ต.ค. (10)</label>
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="11" checked /> พ.ย. (11)</label>
+                    <label class="bench-checkbox-tag"><input type="checkbox" value="12" checked /> ธ.ค. (12)</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPI Mini Cards for Benchmark Section -->
+        <div class="bench-kpi-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0;">
+            <div class="kpi-card" style="padding: 0.85rem 1rem;">
+                <div class="kpi-header"><span style="font-size: 0.85rem;">จำนวนเคสรวม (รพ.ลี้)</span><i class="fa-solid fa-hospital-user kpi-icon" style="color: var(--primary);"></i></div>
+                <div class="kpi-value" id="val-bench-cases" style="font-size: 1.35rem; margin-top: 0.25rem;">0</div>
+            </div>
+            <div class="kpi-card" style="padding: 0.85rem 1rem;">
+                <div class="kpi-header"><span style="font-size: 0.85rem;">ผลรวม AdjRW (รพ.ลี้)</span><i class="fa-solid fa-calculator kpi-icon" style="color: var(--scheme-csmbs);"></i></div>
+                <div class="kpi-value" id="val-bench-adjrw" style="font-size: 1.35rem; margin-top: 0.25rem;">0.00</div>
+            </div>
+            <div class="kpi-card" style="padding: 0.85rem 1rem;">
+                <div class="kpi-header"><span style="font-size: 0.85rem;">CMI รวม (รพ.ลี้)</span><i class="fa-solid fa-gauge-high kpi-icon" style="color: var(--scheme-sss);"></i></div>
+                <div class="kpi-value" id="val-bench-cmi" style="font-size: 1.35rem; margin-top: 0.25rem; color: #22c55e;">0.0000</div>
+            </div>
+        </div>
+
+        <!-- Column Visibility Toggle Toolbar -->
+        <div class="column-toggle-bar" id="cmi-bench-col-toggles">
+            <span class="column-toggle-label"><i class="fa-solid fa-table-columns"></i> ซ่อน/แสดง คอลัมน์:</span>
+            <label class="column-toggle-item"><input type="checkbox" data-col="hosp-5" checked /> 5 รพ. เดิม (สันป่าตอง-สันทราย)</label>
+            <label class="column-toggle-item"><input type="checkbox" data-col="avg-5" checked /> เฉลี่ย 5 รพ.</label>
+            <label class="column-toggle-item"><input type="checkbox" data-col="li-cases" checked /> จำนวนเคส (ลี้)</label>
+            <label class="column-toggle-item"><input type="checkbox" data-col="li-adjrw" checked /> ผลรวม AdjRW (ลี้)</label>
+            <label class="column-toggle-item"><input type="checkbox" data-col="li-cmi" checked /> CMI (ลี้)</label>
+            <label class="column-toggle-item"><input type="checkbox" data-col="diff" checked /> ส่วนต่าง</label>
+        </div>
+
+        <!-- Comparison Table -->
+        <div class="table-wrapper" style="max-height: 550px; overflow-x: auto; overflow-y: auto;">
+            <table class="cmi-benchmark-table" id="cmi-benchmark-table">
+                <thead>
+                    <tr id="cmi-bench-table-header">
+                        <th class="col-code sortable-header" data-sort="code">รหัสโรค <i class="fa-solid fa-sort"></i></th>
+                        <th class="col-desc sortable-header" data-sort="desc">ชื่อโรค (ICD-10 Description) <i class="fa-solid fa-sort"></i></th>
+                        <th class="col-hosp-5 numeric-cell sortable-header" data-sort="sanpatong">สันป่าตอง <i class="fa-solid fa-sort"></i></th>
+                        <th class="col-hosp-5 numeric-cell sortable-header" data-sort="chiangkham">เชียงคำ <i class="fa-solid fa-sort"></i></th>
+                        <th class="col-hosp-5 numeric-cell sortable-header" data-sort="chomthong">จอมทอง <i class="fa-solid fa-sort"></i></th>
+                        <th class="col-hosp-5 numeric-cell sortable-header" data-sort="fang">ฝาง <i class="fa-solid fa-sort"></i></th>
+                        <th class="col-hosp-5 numeric-cell sortable-header" data-sort="sansai">สันทราย <i class="fa-solid fa-sort"></i></th>
+                        <th class="col-avg-5 numeric-cell sortable-header" data-sort="avg5" style="background: var(--bg-hover);">เฉลี่ย 5 รพ. <i class="fa-solid fa-sort"></i></th>
+                        <th class="col-li-cases numeric-cell sortable-header" data-sort="li_cases" style="background: rgba(34, 197, 94, 0.1); min-width: 120px;">จำนวนเคส (ลี้) <i class="fa-solid fa-sort"></i></th>
+                        <th class="col-li-adjrw numeric-cell sortable-header" data-sort="li_sum_adjrw" style="background: rgba(34, 197, 94, 0.1); min-width: 130px;">ผลรวม AdjRW (ลี้) <i class="fa-solid fa-sort"></i></th>
+                        <th class="col-li-cmi numeric-cell sortable-header" data-sort="cmi_li" style="background: rgba(34, 197, 94, 0.15); font-weight: 700; min-width: 110px;">CMI (รพ.ลี้) <i class="fa-solid fa-sort"></i></th>
+                        <th class="col-diff sortable-header" data-sort="diff" style="text-align: center; min-width: 130px;">ส่วนต่าง/เปรียบเทียบ <i class="fa-solid fa-sort"></i></th>
+                    </tr>
+                </thead>
+                <tbody id="cmi-benchmark-table-body">
+                    <!-- Dynamic rows -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</div></div>
 <!-- DASHBOARD 2: NHSO FUND TRANSFER CONTENT -->
 <div class="portal-tab-content" id="transfer-dashboard-content"><div class="grid-stack" id="grid-transfer"><div class="grid-stack-item" gs-h="2" gs-w="3"><div class="grid-stack-item-content"><div class="kpi-card" id="kpi-transfer-received" style="width: 100%; height: 100%">
 <div class="kpi-header">

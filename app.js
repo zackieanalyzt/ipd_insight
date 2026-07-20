@@ -1066,6 +1066,7 @@ function onAllDataReady() {
     initializeTransferFilters();
     initializeItemsFilters();
     initializeOpdFilters();
+    initCmiBenchmark();
     updateLatestDataBadges();
     hideLoading();
     
@@ -3680,3 +3681,343 @@ function initGridStack() {
         }
     });
 }
+
+// -----------------------------------------------------------------------------
+// CMI BENCHMARK COMPARISON LOGIC (Risk 5-7 M1 vs Li Hospital)
+// -----------------------------------------------------------------------------
+
+let cmiBenchRawData = null;
+let cmiBenchSortKey = null;
+let cmiBenchSortDir = 'asc';
+
+function initCmiBenchmark() {
+    const codeSearchInput = document.getElementById('cmi-bench-code-search');
+    const descSearchInput = document.getElementById('cmi-bench-desc-search');
+    const exportBtn = document.getElementById('btn-export-cmi-bench-csv');
+    const toggleContainer = document.getElementById('cmi-bench-col-toggles');
+    const headerRow = document.getElementById('cmi-bench-table-header');
+
+    // Year / Month Checkbox Bulk Action Buttons
+    const btnYearAll = document.getElementById('btn-bench-year-all');
+    const btnYearClear = document.getElementById('btn-bench-year-clear');
+    const btnMonthAll = document.getElementById('btn-bench-month-all');
+    const btnMonthClear = document.getElementById('btn-bench-month-clear');
+
+    if (btnYearAll) {
+        btnYearAll.addEventListener('click', () => {
+            document.querySelectorAll('#cmi-bench-year-checkboxes input[type="checkbox"]').forEach(cb => cb.checked = true);
+            triggerBenchDataReload();
+        });
+    }
+
+    if (btnYearClear) {
+        btnYearClear.addEventListener('click', () => {
+            document.querySelectorAll('#cmi-bench-year-checkboxes input[type="checkbox"]').forEach(cb => cb.checked = false);
+            triggerBenchDataReload();
+        });
+    }
+
+    if (btnMonthAll) {
+        btnMonthAll.addEventListener('click', () => {
+            document.querySelectorAll('#cmi-bench-month-checkboxes input[type="checkbox"]').forEach(cb => cb.checked = true);
+            triggerBenchDataReload();
+        });
+    }
+
+    if (btnMonthClear) {
+        btnMonthClear.addEventListener('click', () => {
+            document.querySelectorAll('#cmi-bench-month-checkboxes input[type="checkbox"]').forEach(cb => cb.checked = false);
+            triggerBenchDataReload();
+        });
+    }
+
+    // Month checkboxes change listener
+    const monthContainer = document.getElementById('cmi-bench-month-checkboxes');
+    if (monthContainer) {
+        monthContainer.addEventListener('change', () => {
+            triggerBenchDataReload();
+        });
+    }
+
+    // Code & Description Search inputs listener
+    if (codeSearchInput) {
+        codeSearchInput.addEventListener('input', () => {
+            renderCmiBenchmarkTable();
+        });
+    }
+
+    if (descSearchInput) {
+        descSearchInput.addEventListener('input', () => {
+            renderCmiBenchmarkTable();
+        });
+    }
+
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            exportCmiBenchmarkCSV();
+        });
+    }
+
+    // Header Sort Listener
+    if (headerRow) {
+        headerRow.addEventListener('click', (e) => {
+            const th = e.target.closest('th[data-sort]');
+            if (!th) return;
+            const key = th.getAttribute('data-sort');
+            if (cmiBenchSortKey === key) {
+                cmiBenchSortDir = cmiBenchSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                cmiBenchSortKey = key;
+                cmiBenchSortDir = 'asc';
+            }
+            updateCmiBenchSortIcons();
+            renderCmiBenchmarkTable();
+        });
+    }
+
+    // Column Toggles Listener
+    if (toggleContainer) {
+        toggleContainer.addEventListener('change', (e) => {
+            if (e.target && e.target.type === 'checkbox') {
+                const col = e.target.getAttribute('data-col');
+                const table = document.getElementById('cmi-benchmark-table');
+                if (table && col) {
+                    if (e.target.checked) {
+                        table.classList.remove(`hide-${col}`);
+                    } else {
+                        table.classList.add(`hide-${col}`);
+                    }
+                }
+            }
+        });
+    }
+
+    // Initial load
+    loadCmiBenchmarkData('all', 'all', true);
+}
+
+function getSelectedBenchYears() {
+    const list = document.querySelectorAll('#cmi-bench-year-checkboxes input[type="checkbox"]:checked');
+    const allCheckboxes = document.querySelectorAll('#cmi-bench-year-checkboxes input[type="checkbox"]');
+    if (!list || list.length === 0) return 'none';
+    if (list.length === allCheckboxes.length) return 'all';
+    return Array.from(list).map(cb => cb.value).join(',');
+}
+
+function getSelectedBenchMonths() {
+    const list = document.querySelectorAll('#cmi-bench-month-checkboxes input[type="checkbox"]:checked');
+    const allCheckboxes = document.querySelectorAll('#cmi-bench-month-checkboxes input[type="checkbox"]');
+    if (!list || list.length === 0) return 'none';
+    if (list.length === allCheckboxes.length) return 'all';
+    return Array.from(list).map(cb => cb.value).join(',');
+}
+
+function triggerBenchDataReload() {
+    const yStr = getSelectedBenchYears();
+    const mStr = getSelectedBenchMonths();
+    loadCmiBenchmarkData(yStr, mStr);
+}
+
+function updateCmiBenchSortIcons() {
+    const headers = document.querySelectorAll('#cmi-bench-table-header th[data-sort]');
+    headers.forEach(th => {
+        const key = th.getAttribute('data-sort');
+        const icon = th.querySelector('i');
+        th.classList.remove('active-sort');
+        if (icon) {
+            icon.className = 'fa-solid fa-sort';
+        }
+        if (key === cmiBenchSortKey) {
+            th.classList.add('active-sort');
+            if (icon) {
+                if (key === 'code' || key === 'desc') {
+                    icon.className = cmiBenchSortDir === 'asc' ? 'fa-solid fa-arrow-down-a-z' : 'fa-solid fa-arrow-up-z-a';
+                } else {
+                    icon.className = cmiBenchSortDir === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+                }
+            }
+        }
+    });
+}
+
+function loadCmiBenchmarkData(year, month, isInitial = false) {
+    const url = `/api/cmi/benchmark?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}`;
+    fetch(url)
+        .then(res => {
+            if (!res.ok) throw new Error('Failed to fetch CMI benchmark data');
+            return res.json();
+        })
+        .then(data => {
+            cmiBenchRawData = data;
+
+            // Populate year checkboxes on initial load
+            if (isInitial && data.available_years && data.available_years.length > 0) {
+                const yearContainer = document.getElementById('cmi-bench-year-checkboxes');
+                if (yearContainer) {
+                    yearContainer.innerHTML = '';
+                    data.available_years.forEach(y => {
+                        const label = document.createElement('label');
+                        label.className = 'bench-checkbox-tag';
+                        label.innerHTML = `<input type="checkbox" value="${y}" checked /> ปี ${y}`;
+                        yearContainer.appendChild(label);
+                    });
+
+                    // Add change listener to year checkboxes
+                    yearContainer.addEventListener('change', () => {
+                        triggerBenchDataReload();
+                    });
+                }
+            }
+
+            // Update KPI Mini Cards
+            const casesEl = document.getElementById('val-bench-cases');
+            const adjrwEl = document.getElementById('val-bench-adjrw');
+            const cmiEl = document.getElementById('val-bench-cmi');
+
+            if (casesEl && data.summary) {
+                casesEl.textContent = data.summary.total_li_cases.toLocaleString('th-TH');
+            }
+            if (adjrwEl && data.summary) {
+                adjrwEl.textContent = data.summary.total_li_sum_adjrw.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+            }
+            if (cmiEl && data.summary) {
+                cmiEl.textContent = data.summary.overall_li_cmi.toFixed(4);
+            }
+
+            renderCmiBenchmarkTable();
+        })
+        .catch(err => {
+            console.error('Error loading CMI benchmark:', err);
+        });
+}
+
+function renderCmiBenchmarkTable() {
+    const tbody = document.getElementById('cmi-benchmark-table-body');
+    const codeSearchInput = document.getElementById('cmi-bench-code-search');
+    const descSearchInput = document.getElementById('cmi-bench-desc-search');
+    if (!tbody || !cmiBenchRawData || !cmiBenchRawData.data) return;
+
+    const codeQuery = codeSearchInput ? codeSearchInput.value.trim().toLowerCase() : '';
+    const descQuery = descSearchInput ? descSearchInput.value.trim().toLowerCase() : '';
+
+    let filtered = cmiBenchRawData.data.filter(row => {
+        if (codeQuery && !row.code.toLowerCase().includes(codeQuery)) return false;
+        if (descQuery && !row.desc.toLowerCase().includes(descQuery)) return false;
+        return true;
+    });
+
+    // Apply Column Sorting if sort key is set
+    if (cmiBenchSortKey) {
+        filtered.sort((a, b) => {
+            if (cmiBenchSortKey === 'code' || cmiBenchSortKey === 'desc') {
+                const valA = (a[cmiBenchSortKey] || '').toString();
+                const valB = (b[cmiBenchSortKey] || '').toString();
+                return cmiBenchSortDir === 'asc'
+                    ? valA.localeCompare(valB, 'th')
+                    : valB.localeCompare(valA, 'th');
+            } else {
+                const valA = parseFloat(a[cmiBenchSortKey]) || 0;
+                const valB = parseFloat(b[cmiBenchSortKey]) || 0;
+                return cmiBenchSortDir === 'asc' ? valA - valB : valB - valA;
+            }
+        });
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: var(--text-sidebar-muted); padding: 1.5rem;">ไม่พบข้อมูลโรคที่ตรงตามคำค้นหา</td></tr>`;
+        return;
+    }
+
+    let html = '';
+    filtered.forEach(row => {
+        const diff = row.diff;
+        let diffBadge = '';
+
+        if (row.li_cases === 0) {
+            diffBadge = `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; background: var(--bg-hover); color: var(--text-sidebar-muted);">0 เคส</span>`;
+        } else if (diff > 0) {
+            diffBadge = `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; background: rgba(34, 197, 94, 0.15); color: #16a34a; font-weight: 600;"><i class="fa-solid fa-arrow-up"></i> +${diff.toFixed(4)}</span>`;
+        } else if (diff < 0) {
+            diffBadge = `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; background: rgba(239, 68, 68, 0.15); color: #dc2626; font-weight: 600;"><i class="fa-solid fa-arrow-down"></i> ${diff.toFixed(4)}</span>`;
+        } else {
+            diffBadge = `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; background: rgba(107, 114, 128, 0.15); color: var(--text-secondary); font-weight: 600;">= 0.0000</span>`;
+        }
+
+        const cmiLiStr = row.li_cases > 0 ? row.cmi_li.toFixed(4) : '-';
+
+        html += `
+            <tr>
+                <td class="col-code">${row.code}</td>
+                <td class="col-desc">${row.desc}</td>
+                <td class="col-hosp-5 numeric-cell">${row.sanpatong.toFixed(2)}</td>
+                <td class="col-hosp-5 numeric-cell">${row.chiangkham.toFixed(2)}</td>
+                <td class="col-hosp-5 numeric-cell">${row.chomthong.toFixed(2)}</td>
+                <td class="col-hosp-5 numeric-cell">${row.fang.toFixed(2)}</td>
+                <td class="col-hosp-5 numeric-cell">${row.sansai.toFixed(2)}</td>
+                <td class="col-avg-5 numeric-cell" style="background: var(--bg-hover); font-weight: 600;">${row.avg5.toFixed(4)}</td>
+                <td class="col-li-cases numeric-cell" style="background: rgba(34, 197, 94, 0.05); font-weight: 600;">${row.li_cases.toLocaleString('th-TH')}</td>
+                <td class="col-li-adjrw numeric-cell" style="background: rgba(34, 197, 94, 0.05);">${row.li_cases > 0 ? row.li_sum_adjrw.toFixed(4) : '-'}</td>
+                <td class="col-li-cmi numeric-cell" style="background: rgba(34, 197, 94, 0.12); font-weight: 700; color: #16a34a;">${cmiLiStr}</td>
+                <td class="col-diff" style="text-align: center;">${diffBadge}</td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+}
+
+function exportCmiBenchmarkCSV() {
+    if (!cmiBenchRawData || !cmiBenchRawData.data || cmiBenchRawData.data.length === 0) {
+        alert('ไม่มีข้อมูลสำหรับส่งออก CSV');
+        return;
+    }
+
+    const yVal = getSelectedBenchYears();
+    const mVal = getSelectedBenchMonths();
+
+    const headers = [
+        'รหัสโรค (ICD-10)',
+        'ชื่อโรค (Description)',
+        'สันป่าตอง (11128)',
+        'เชียงคำ (10718)',
+        'จอมทอง (11119)',
+        'ฝาง (11125)',
+        'สันทราย (11130)',
+        'เฉลี่ย 5 รพ.',
+        'จำนวนเคส (รพ.ลี้)',
+        'ผลรวม AdjRW (รพ.ลี้)',
+        'CMI (รพ.ลี้)',
+        'ส่วนต่าง (ลี้ vs เฉลี่ย 5 รพ.)'
+    ];
+
+    const csvRows = [headers.join(',')];
+
+    cmiBenchRawData.data.forEach(r => {
+        const rowVal = [
+            `"${r.code}"`,
+            `"${r.desc.replace(/"/g, '""')}"`,
+            r.sanpatong.toFixed(2),
+            r.chiangkham.toFixed(2),
+            r.chomthong.toFixed(2),
+            r.fang.toFixed(2),
+            r.sansai.toFixed(2),
+            r.avg5.toFixed(4),
+            r.li_cases,
+            r.li_sum_adjrw.toFixed(4),
+            r.li_cases > 0 ? r.cmi_li.toFixed(4) : 0,
+            r.diff.toFixed(4)
+        ];
+        csvRows.push(rowVal.join(','));
+    });
+
+    const csvContent = '\uFEFF' + csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const fileName = `CMI_Benchmark_Risk5-7_Li_Hospital_Years_${yVal}_Months_${mVal}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+

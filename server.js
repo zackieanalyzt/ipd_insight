@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const readline = require('readline');
 const { Pool } = require('pg');
 
 const app = express();
@@ -25,6 +26,8 @@ let itemsCache = [];
 let opdCache = [];
 let opdDiagCache = [];
 let opdLocCache = [];
+let cmiBenchmarkList = [];
+let ipdVisitsCache = [];
 
 // Database Connection & Failover State
 let currentMode = 'csv'; // Initial mode is csv, will try db on startup
@@ -249,6 +252,42 @@ function parseCSVLine(line) {
     return result;
 }
 
+function processCSVStream(filePath, onRow) {
+    return new Promise((resolve, reject) => {
+        if (!fs.existsSync(filePath)) {
+            console.warn(`File not found: ${filePath}`);
+            return resolve();
+        }
+
+        const rl = readline.createInterface({
+            input: fs.createReadStream(filePath, { encoding: 'utf8' }),
+            crlfDelay: Infinity
+        });
+
+        let headers = null;
+
+        rl.on('line', (line) => {
+            if (!line.trim()) return;
+            if (!headers) {
+                headers = parseCSVLine(line).map(h => h.trim());
+                return;
+            }
+            const rowValues = parseCSVLine(line);
+            const row = {};
+            for (let j = 0; j < headers.length; j++) {
+                row[headers[j]] = rowValues[j] !== undefined ? rowValues[j] : '';
+            }
+            onRow(row);
+        });
+
+        rl.on('close', () => resolve());
+        rl.on('error', (err) => {
+            console.error(`Error reading ${filePath}:`, err);
+            resolve();
+        });
+    });
+}
+
 function parseCSVFile(filePath) {
     if (!fs.existsSync(filePath)) {
         console.warn(`File not found: ${filePath}`);
@@ -276,9 +315,27 @@ function parseCSVFile(filePath) {
     return data;
 }
 
-function loadCSVDataSources() {
-    console.log(`[${new Date().toISOString()}] Loading data from CSV files...`);
-    const start = Date.now();
+let isLoadingCSV = false;
+
+async function loadCSVDataSources() {
+    if (isLoadingCSV) {
+        console.log(`[${new Date().toISOString()}] CSV loading already in progress, skipping redundant request.`);
+        return;
+    }
+    isLoadingCSV = true;
+    try {
+        console.log(`[${new Date().toISOString()}] Loading data from CSV files (stream mode)...`);
+        const start = Date.now();
+
+    // Reset caches
+    cmiCache.length = 0;
+    transfersCache.length = 0;
+    itemsCache.length = 0;
+    opdCache.length = 0;
+    opdDiagCache.length = 0;
+    opdLocCache.length = 0;
+    cmiBenchmarkList.length = 0;
+    ipdVisitsCache.length = 0;
 
     // 1. Load CMI Data
     const cmiFilename = (config.data_files && config.data_files.cmi) || 'ipd_cmi.csv';
@@ -311,7 +368,6 @@ function loadCSVDataSources() {
         const deduction = parseFloat(row.deduction) || 0;
         let remain = parseFloat(row.remain) || 0;
 
-        // Fix database data entry sign error: if amount is 0 and deduction is positive, remain should be negative
         if (amount === 0 && deduction > 0 && remain > 0) {
             remain = -remain;
         }
@@ -335,74 +391,165 @@ function loadCSVDataSources() {
     }).filter(row => row.byear > 0 && row.main_fund !== '');
     console.log(`[${new Date().toISOString()}] Loaded ${transfersFilename}: ${transfersCache.length} rows`);
 
-    // 3. Load Items Service Data
+    // 3. Load Items Service Data (Stream)
     const itemsFilename = (config.data_files && config.data_files.items) || 'items_summary_aggregated.csv';
     const itemsPath = path.join(__dirname, itemsFilename);
-    const itemsRaw = parseCSVFile(itemsPath);
-    itemsCache = itemsRaw.map(row => ({
-        visit_type: row.visit_type ? row.visit_type.trim() : 'ไม่ระบุประเภทผู้ป่วย',
-        item_group: row.item_group ? row.item_group.trim() : 'ไม่ระบุกลุ่มบริการ',
-        item_common_name: row.item_common_name ? row.item_common_name.trim() : 'ไม่ระบุรายการบริการ',
-        total_quantity: parseInt(row.total_quantity) || 0,
-        total_price: parseFloat(row.total_price) || 0,
-        byear: parseInt(row.byear) || 0,
-        year: parseInt(row.year) || 0,
-        month: row.month ? row.month.toString().padStart(2, '0') : ''
-    })).filter(row => row.byear > 0 && row.item_group !== '');
+    await processCSVStream(itemsPath, (row) => {
+        const byear = parseInt(row.byear) || 0;
+        const item_group = row.item_group ? row.item_group.trim() : '';
+        if (byear > 0 && item_group !== '') {
+            itemsCache.push({
+                visit_type: row.visit_type ? row.visit_type.trim() : 'ไม่ระบุประเภทผู้ป่วย',
+                item_group,
+                item_common_name: row.item_common_name ? row.item_common_name.trim() : 'ไม่ระบุรายการบริการ',
+                total_quantity: parseInt(row.total_quantity) || 0,
+                total_price: parseFloat(row.total_price) || 0,
+                byear,
+                year: parseInt(row.year) || 0,
+                month: row.month ? row.month.toString().padStart(2, '0') : ''
+            });
+        }
+    });
     console.log(`[${new Date().toISOString()}] Loaded ${itemsFilename}: ${itemsCache.length} rows`);
 
-    // 4. Load OPD Summary Data
+    // 4. Load OPD Summary Data (Stream)
     const opdFilename = (config.data_files && config.data_files.opd) || 'opd_visit_summary.csv';
     const opdPath = path.join(__dirname, opdFilename);
-    const opdRaw = parseCSVFile(opdPath);
-    opdCache = opdRaw.map(row => ({
+    await processCSVStream(opdPath, (row) => {
+        const byear = parseInt(row.byear) || 0;
+        const visit_count = parseInt(row.visit_count) || 0;
+        if (byear > 0 && visit_count > 0) {
+            opdCache.push({
+                byear,
+                year_visit: parseInt(row.year_visit) || 0,
+                month_visit: row.month_visit ? row.month_visit.toString().padStart(2, '0') : '',
+                sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
+                changwat: row.changwat ? row.changwat.trim() : 'ไม่ระบุ',
+                amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
+                district: row.district ? row.district.trim() : 'ไม่ระบุ',
+                ins_type: row.ins_type ? row.ins_type.trim() : 'ไม่ระบุ',
+                diag_code: row.diag_code ? row.diag_code.trim() : 'ไม่ระบุ',
+                diag_type: row.diag_type ? row.diag_type.trim() : 'ไม่ระบุ',
+                visit_count,
+                sum_age: parseInt(row.age) || 0
+            });
+        }
+    });
+    console.log(`[${new Date().toISOString()}] Loaded ${opdFilename}: ${opdCache.length} rows`);
+
+    // 5. Load OPD Diag Summary Data (Stream)
+    const diagFilename = 'opd_diag_summary.csv';
+    const diagPath = path.join(__dirname, diagFilename);
+    await processCSVStream(diagPath, (row) => {
+        const byear = parseInt(row.byear) || 0;
+        const visit_count = parseInt(row.visit_count) || 0;
+        if (byear > 0 && visit_count > 0) {
+            opdDiagCache.push({
+                byear,
+                year_visit: parseInt(row.year_visit) || 0,
+                month_visit: row.month_visit ? row.month_visit.toString().padStart(2, '0') : '',
+                changwat: row.changwat ? row.changwat.trim() : 'ไม่ระบุ',
+                amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
+                sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
+                diag_code: row.diag_code ? row.diag_code.trim() : 'ไม่ระบุ',
+                diag_type: row.diag_type ? row.diag_type.trim() : 'ไม่ระบุ',
+                visit_count
+            });
+        }
+    });
+    console.log(`[${new Date().toISOString()}] Loaded ${diagFilename}: ${opdDiagCache.length} rows`);
+
+    // 6. Load OPD Location Summary Data
+    const locFilename = 'opd_location_summary.csv';
+    const locPath = path.join(__dirname, locFilename);
+    const locRaw = parseCSVFile(locPath);
+    opdLocCache = locRaw.map(row => ({
         byear: parseInt(row.byear) || 0,
-        year_visit: parseInt(row.year_visit) || 0,
-        month_visit: row.month_visit ? row.month_visit.toString().padStart(2, '0') : '',
-        sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
         changwat: row.changwat ? row.changwat.trim() : 'ไม่ระบุ',
         amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
         district: row.district ? row.district.trim() : 'ไม่ระบุ',
-        ins_type: row.ins_type ? row.ins_type.trim() : 'ไม่ระบุ',
-        diag_code: row.diag_code ? row.diag_code.trim() : 'ไม่ระบุ',
-        diag_type: row.diag_type ? row.diag_type.trim() : 'ไม่ระบุ',
-        visit_count: parseInt(row.visit_count) || 0,
-        sum_age: parseInt(row.age) || 0   // CSV column is 'age' but internally we keep sum_age
+        visit_count: parseInt(row.visit_count) || 0
     })).filter(row => row.byear > 0 && row.visit_count > 0);
-	    console.log(`[${new Date().toISOString()}] Loaded ${opdFilename}: ${opdCache.length} rows`);
+    console.log(`[${new Date().toISOString()}] Loaded ${locFilename}: ${opdLocCache.length} rows`);
 
-	    // 5. Load OPD Diag Summary Data
-	    const diagFilename = 'opd_diag_summary.csv';
-	    const diagPath = path.join(__dirname, diagFilename);
-	    const diagRaw = parseCSVFile(diagPath);
-	    opdDiagCache = diagRaw.map(row => ({
-	        byear: parseInt(row.byear) || 0,
-	        year_visit: parseInt(row.year_visit) || 0,
-	        month_visit: row.month_visit ? row.month_visit.toString().padStart(2, '0') : '',
-	        changwat: row.changwat ? row.changwat.trim() : 'ไม่ระบุ',
-	        amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
-	        sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
-	        diag_code: row.diag_code ? row.diag_code.trim() : 'ไม่ระบุ',
-	        diag_type: row.diag_type ? row.diag_type.trim() : 'ไม่ระบุ',
-	        visit_count: parseInt(row.visit_count) || 0
-	    })).filter(row => row.byear > 0 && row.visit_count > 0);
-		    console.log(`[${new Date().toISOString()}] Loaded ${diagFilename}: ${opdDiagCache.length} rows`);
-
-		    // 6. Load OPD Location Summary Data
-	    const locFilename = 'opd_location_summary.csv';
-	    const locPath = path.join(__dirname, locFilename);
-	    const locRaw = parseCSVFile(locPath);
-	    opdLocCache = locRaw.map(row => ({
-	        byear: parseInt(row.byear) || 0,
-	        changwat: row.changwat ? row.changwat.trim() : 'ไม่ระบุ',
-	        amphur: row.amphur ? row.amphur.trim() : 'ไม่ระบุ',
-	        district: row.district ? row.district.trim() : 'ไม่ระบุ',
-	        visit_count: parseInt(row.visit_count) || 0
-	    })).filter(row => row.byear > 0 && row.visit_count > 0);
-	    console.log(`[${new Date().toISOString()}] Loaded ${locFilename}: ${opdLocCache.length} rows`);
+    // 7. Load CMI Benchmark & IPD Visits for Li Hospital
+    loadCmiBenchmark();
+    await loadIpdVisitsStream();
 
     const duration = ((Date.now() - start) / 1000).toFixed(2);
-    console.log(`[${new Date().toISOString()}] All data sources loaded into memory in ${duration}s`);
+    const heapUsed = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
+    console.log(`[${new Date().toISOString()}] All data sources loaded into memory in ${duration}s (Heap Used: ${heapUsed} MB)`);
+    } finally {
+        isLoadingCSV = false;
+    }
+}
+
+function loadCmiBenchmark() {
+    const filePath = path.join(__dirname, 'CMI รพ risk5-7 - M1.csv');
+    if (!fs.existsSync(filePath)) {
+        console.warn('CMI Benchmark file not found:', filePath);
+        cmiBenchmarkList = [];
+        return;
+    }
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.split(/\r?\n/).filter(l => l.trim());
+    cmiBenchmarkList = [];
+    for (let i = 3; i < lines.length; i++) {
+        const row = parseCSVLine(lines[i]);
+        if (row.length < 2) continue;
+        const code = row[0].trim().toUpperCase();
+        const desc = row[1].trim();
+        if (!code) continue;
+        const sanpatong = parseFloat(row[2]) || 0;
+        const chiangkham = parseFloat(row[3]) || 0;
+        const chomthong = parseFloat(row[4]) || 0;
+        const fang = parseFloat(row[5]) || 0;
+        const sansai = parseFloat(row[6]) || 0;
+        const avg5 = Number(((sanpatong + chiangkham + chomthong + fang + sansai) / 5).toFixed(4));
+        cmiBenchmarkList.push({
+            code,
+            desc,
+            sanpatong,
+            chiangkham,
+            chomthong,
+            fang,
+            sansai,
+            avg5
+        });
+    }
+    console.log(`[${new Date().toISOString()}] Loaded CMI Benchmark (Risk 5-7 M1): ${cmiBenchmarkList.length} disease codes`);
+}
+
+async function loadIpdVisitsStream() {
+    const filePath = path.join(__dirname, 'ipd_visit.csv');
+    ipdVisitsCache = [];
+    if (!fs.existsSync(filePath)) {
+        console.warn('ipd_visit.csv file not found:', filePath);
+        return;
+    }
+
+    await processCSVStream(filePath, (row) => {
+        const pdx = row.pdx ? row.pdx.trim() : '';
+        const adjrw = parseFloat(row.adjrw) || 0;
+        const datedsc = row.datedsc ? row.datedsc.trim() : '';
+
+        let year = '';
+        let month = '';
+        if (datedsc && datedsc.length >= 7) {
+            const parts = datedsc.split('-');
+            if (parts.length >= 2) {
+                year = parts[0];
+                month = parts[1];
+            }
+        }
+
+        if (pdx.length >= 3) {
+            const pdx3 = pdx.substring(0, 3).toUpperCase();
+            ipdVisitsCache.push({ pdx3, adjrw, year, month });
+        }
+    });
+
+    console.log(`[${new Date().toISOString()}] Loaded ipd_visit.csv: ${ipdVisitsCache.length} parsed records`);
 }
 
 // Clear all CSV caches (force reload on next read)
@@ -413,6 +560,8 @@ function clearAllCaches() {
     opdCache = [];
     opdDiagCache = [];
     opdLocCache = [];
+    cmiBenchmarkList = [];
+    ipdVisitsCache = [];
 }
 
 // Watch CSV files for changes & reload automatically
@@ -487,6 +636,78 @@ app.get('/api/cmi', async (req, res) => {
         }
     }
     res.json(cmiCache);
+});
+
+// API: Get CMI Benchmark comparison data for Li Hospital vs Risk 5-7 M1 Hospitals
+app.get('/api/cmi/benchmark', (req, res) => {
+    const { year, month } = req.query;
+
+    const yearsSet = new Set();
+    const monthsSet = new Set();
+    for (const v of ipdVisitsCache) {
+        if (v.year) yearsSet.add(v.year);
+        if (v.month) monthsSet.add(v.month);
+    }
+    const availableYears = Array.from(yearsSet).sort();
+    const availableMonths = Array.from(monthsSet).sort();
+
+    // Support multi-select comma-separated list of years and months
+    let selectedYearsList = null;
+    if (year && year !== 'all') {
+        const parts = year.split(',').map(y => y.trim()).filter(Boolean);
+        if (parts.length > 0) selectedYearsList = new Set(parts);
+    }
+
+    let selectedMonthsList = null;
+    if (month && month !== 'all') {
+        const parts = month.split(',').map(m => m.trim().padStart(2, '0')).filter(Boolean);
+        if (parts.length > 0) selectedMonthsList = new Set(parts);
+    }
+
+    const stats = {};
+    let totalLiCases = 0;
+    let totalLiSumAdjrw = 0;
+
+    for (const v of ipdVisitsCache) {
+        if (selectedYearsList && !selectedYearsList.has(v.year)) continue;
+        if (selectedMonthsList && !selectedMonthsList.has(v.month)) continue;
+
+        if (!stats[v.pdx3]) {
+            stats[v.pdx3] = { cases: 0, sum_adjrw: 0 };
+        }
+        stats[v.pdx3].cases += 1;
+        stats[v.pdx3].sum_adjrw += v.adjrw;
+        totalLiCases += 1;
+        totalLiSumAdjrw += v.adjrw;
+    }
+
+    const overallLiCmi = totalLiCases > 0 ? Number((totalLiSumAdjrw / totalLiCases).toFixed(4)) : 0;
+
+    const rows = cmiBenchmarkList.map(b => {
+        const st = stats[b.code] || { cases: 0, sum_adjrw: 0 };
+        const cmi_li = st.cases > 0 ? Number((st.sum_adjrw / st.cases).toFixed(4)) : 0;
+        const diff = Number((cmi_li - b.avg5).toFixed(4));
+        return {
+            ...b,
+            li_cases: st.cases,
+            li_sum_adjrw: Number(st.sum_adjrw.toFixed(4)),
+            cmi_li,
+            diff
+        };
+    });
+
+    res.json({
+        available_years: availableYears,
+        available_months: availableMonths,
+        selected_year: year || 'all',
+        selected_month: month || 'all',
+        summary: {
+            total_li_cases: totalLiCases,
+            total_li_sum_adjrw: Number(totalLiSumAdjrw.toFixed(4)),
+            overall_li_cmi: overallLiCmi
+        },
+        data: rows
+    });
 });
 
 // API: Get NHSO Fund Transfer data

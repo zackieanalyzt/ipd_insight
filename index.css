@@ -1902,6 +1902,201 @@ body.dark-mode .exit-fullscreen-btn:hover {
     min-height: 0;
 }
 
+    background-color: var(--bg-primary, #f8fafc);
+    padding: 1.5rem 2rem 2rem 2rem !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+body.dark-mode .chart-fullscreen {
+    background-color: #0f172a;
+}
+
+.chart-fullscreen .panel-header {
+    flex-shrink: 0;
+}
+
+.chart-fullscreen .chart-wrapper {
+    flex: 1;
+    min-width: 200px;
+    min-height: 200px;
+    max-width: 100%;
+    max-height: 100%;
+    resize: both;
+    overflow: auto;
+    align-self: center;
+}
+
+.chart-fullscreen .chart-wrapper canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Size controls bar shown in fullscreen */
+.size-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.size-controls .size-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+}
+
+.size-controls .size-btn:hover {
+    background-color: var(--primary-light);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+body.dark-mode .size-controls .size-btn:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+.size-controls .size-btn i {
+    font-size: 0.75rem;
+}
+
+/* Size slider */
+.size-slider-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.size-slider {
+    width: 100px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border-color);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.size-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--bg-secondary);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.size-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--bg-secondary);
+    cursor: pointer;
+}
+
+.size-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 2.8rem;
+    text-align: center;
+}
+
+/* Exit fullscreen button */
+.exit-fullscreen-btn {
+    background: none;
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.exit-fullscreen-btn:hover {
+    background-color: #fef2f2;
+    color: #dc2626;
+    border-color: #dc2626;
+}
+
+body.dark-mode .exit-fullscreen-btn:hover {
+    background-color: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+    border-color: #f87171;
+}
+
+/* Fullscreen indicator text - hidden by default, shown in fullscreen */
+.fullscreen-indicator {
+    display: none;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    padding: 0.25rem 0.6rem;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+.chart-fullscreen .fullscreen-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+
+/* Gridstack Overrides */
+.grid-stack-item-content {
+    background-color: transparent !important; /* let inner card show background */
+}
+
+/* Ensure our cards fill the grid items */
+.grid-stack-item-content .kpi-card, 
+.grid-stack-item-content .visual-container, 
+.grid-stack-item-content .breakdown-card, 
+.grid-stack-item-content .details-container {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+}
+
+/* Make chart wrapper fill remaining flex space inside visual-container */
+.visual-container .chart-wrapper {
+    height: auto !important;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Tables inside details-container should be scrollable */
+.details-container .table-wrapper {
+    flex: 1;
+    min-height: 0;
+}
+
 /* GridStack Drag Handles */
 .kpi-header, .panel-header, .table-header, .breakdown-title {
     cursor: grab;
@@ -1910,3 +2105,231 @@ body.dark-mode .exit-fullscreen-btn:hover {
 .kpi-header:active, .panel-header:active, .table-header:active, .breakdown-title:active {
     cursor: grabbing;
 }
+
+/* ==========================================================================
+   CMI BENCHMARK SECTION STYLES
+   ========================================================================== */
+
+.cmi-benchmark-section {
+    width: 100%;
+}
+
+.cmi-bench-label {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.cmi-bench-select {
+    padding: 0.45rem 0.85rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-primary) !important;
+    background-color: var(--bg-card) !important;
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cmi-bench-select:focus, .cmi-bench-select:hover {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+.cmi-bench-select option {
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    font-weight: 500;
+}
+
+/* Column Toggle Control Bar */
+.column-toggle-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding: 0.6rem 1rem;
+    background: var(--bg-hover);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    margin: 0.75rem 0;
+}
+
+.column-toggle-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.column-toggle-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    transition: all 0.15s ease;
+}
+
+.column-toggle-item:hover {
+    border-color: var(--primary);
+}
+
+.column-toggle-item input[type="checkbox"] {
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+/* Table Column Widths & Resizing */
+.cmi-benchmark-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.cmi-benchmark-table th, .cmi-benchmark-table td {
+    padding: 0.65rem 0.85rem;
+    vertical-align: middle;
+}
+
+.col-code {
+    min-width: 85px;
+    font-weight: 700;
+}
+
+.col-desc {
+    min-width: 350px;
+    max-width: 450px;
+    word-wrap: break-word;
+    white-space: normal;
+    line-height: 1.35;
+}
+
+/* Hide columns dynamically via toggle class */
+.cmi-benchmark-table.hide-hosp-5 .col-hosp-5 { display: none !important; }
+.cmi-benchmark-table.hide-avg-5 .col-avg-5 { display: none !important; }
+.cmi-benchmark-table.hide-li-cases .col-li-cases { display: none !important; }
+.cmi-benchmark-table.hide-li-adjrw .col-li-adjrw { display: none !important; }
+.cmi-benchmark-table.hide-li-cmi .col-li-cmi { display: none !important; }
+.cmi-benchmark-table.hide-diff .col-diff { display: none !important; }
+
+/* Sortable Headers */
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sortable-header:hover {
+    background-color: var(--bg-hover) !important;
+    color: var(--primary) !important;
+}
+
+.sortable-header i {
+    margin-left: 0.25rem;
+    font-size: 0.75rem;
+    opacity: 0.4;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.sortable-header:hover i {
+    opacity: 0.8;
+}
+
+.sortable-header.active-sort {
+    color: var(--primary) !important;
+    font-weight: 700;
+}
+
+.sortable-header.active-sort i {
+    opacity: 1;
+    color: var(--primary);
+}
+
+/* Multi-Select Checkbox Filter Card */
+.bench-filter-card {
+    background: var(--bg-hover);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.85rem 1.1rem;
+    margin: 0.75rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.bench-filter-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.bench-filter-label-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 220px;
+}
+
+.bench-bulk-btn {
+    font-size: 0.78rem;
+    color: var(--primary);
+    cursor: pointer;
+    text-decoration: underline;
+    font-weight: 600;
+    transition: opacity 0.15s ease;
+}
+
+.bench-bulk-btn:hover {
+    opacity: 0.8;
+}
+
+.bench-checkbox-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    flex: 1;
+}
+
+.bench-checkbox-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.65rem;
+    background: var(--bg-card);
+    border: 1.5px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+
+.bench-checkbox-tag:hover {
+    border-color: var(--primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.bench-checkbox-tag input[type="checkbox"] {
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+
