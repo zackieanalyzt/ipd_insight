@@ -2332,4 +2332,280 @@ body.dark-mode .exit-fullscreen-btn:hover {
     cursor: pointer;
 }
 
+/* Admin Settings Modal - Redesigned */
+.admin-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(12px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9990;
+    opacity: 0;
+    transition: opacity 0.25s ease-out;
+}
 
+.admin-modal-overlay.active {
+    display: flex;
+    opacity: 1;
+}
+
+.admin-modal-content {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    width: 92%;
+    max-width: 460px;
+    padding: 2.25rem;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.1), var(--card-shadow);
+    transform: scale(0.95);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    color: var(--text-primary);
+}
+
+.admin-modal-overlay.active .admin-modal-content {
+    transform: scale(1);
+}
+
+.admin-modal-title {
+    margin-bottom: 1.5rem; 
+    font-size: 1.25rem;
+    font-weight: 700;
+    display: flex; 
+    align-items: center; 
+    gap: 0.625rem; 
+    color: var(--primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.75rem;
+}
+
+.admin-section-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin: 1.25rem 0 0.5rem 0;
+}
+
+/* Time Picker Component styles */
+.time-picker-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    padding: 0.75rem 1rem;
+    background: rgba(15, 23, 42, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+}
+
+body.dark-mode .time-picker-wrapper {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.time-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 60px;
+}
+
+.time-digit {
+    width: 100%;
+    text-align: center;
+    font-size: 2.75rem;
+    font-weight: 700;
+    background: transparent;
+    border: none;
+    color: var(--primary);
+    font-family: monospace;
+    user-select: none;
+    outline: none;
+    line-height: 1;
+    margin: 0.25rem 0;
+}
+
+.time-separator {
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    animation: colonBlink 1.5s infinite;
+}
+
+@keyframes colonBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+}
+
+.time-arrow {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    transition: color 0.2s, transform 0.15s;
+    outline: none;
+}
+
+.time-arrow:hover {
+    color: var(--primary);
+    transform: scale(1.25);
+}
+
+.time-arrow:active {
+    transform: scale(0.9);
+}
+
+/* Form Styles */
+.admin-form-group {
+    margin-bottom: 1rem;
+}
+
+.admin-form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.375rem;
+    color: var(--text-secondary);
+}
+
+.admin-form-input {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.admin-form-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.password-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.btn-toggle-password {
+    position: absolute;
+    right: 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.95rem;
+    outline: none;
+    transition: color 0.2s;
+}
+
+.btn-toggle-password:hover {
+    color: var(--primary);
+}
+
+.admin-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.625rem;
+    margin-top: 1.75rem;
+}
+
+.admin-btn {
+    padding: 0.625rem 1.125rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.admin-btn:hover {
+    transform: translateY(-1px);
+}
+
+.admin-btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.admin-btn-primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2);
+}
+
+.admin-btn-primary:hover {
+    box-shadow: 0 6px 12px -1px rgba(99, 102, 241, 0.3);
+}
+
+.admin-btn-secondary {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.admin-btn-secondary:hover {
+    background-color: var(--border-hover);
+}
+
+.admin-btn-danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2);
+}
+
+.admin-btn-danger:hover {
+    box-shadow: 0 6px 12px -1px rgba(239, 68, 68, 0.3);
+}
+
+.admin-sync-status {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    line-height: 1.4;
+    display: none;
+    animation: alertSlide 0.2s ease-out;
+}
+
+@keyframes alertSlide {
+    from { transform: translateY(-5px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.admin-sync-status.info {
+    display: block;
+    background-color: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.admin-sync-status.success {
+    display: block;
+    background-color: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.admin-sync-status.error {
+    display: block;
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}

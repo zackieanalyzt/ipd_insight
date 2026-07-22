@@ -3,8 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const { Pool } = require('pg');
+const dbExporter = require('./export-db-to-csv');
 
 const app = express();
+
+app.use(express.json());
 
 // Load configuration
 let config = {};
@@ -66,6 +69,38 @@ function initializeDatabase() {
     testConnection();
     // Start heartbeat monitor
     startHeartbeat();
+    // Start the daily database to CSV sync scheduler
+    startDailySyncScheduler();
+}
+
+function startDailySyncScheduler() {
+    let initialTime = (config.sync_schedule && config.sync_schedule.time) || "00:00";
+    console.log(`[${new Date().toISOString()}] Starting Daily DB-to-CSV Sync Scheduler (Initial: ${initialTime})`);
+    
+    setInterval(async () => {
+        let currentSyncTime = "00:00";
+        try {
+            const currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            currentSyncTime = (currentConfig.sync_schedule && currentConfig.sync_schedule.time) || "00:00";
+        } catch (e) {
+            currentSyncTime = (config.sync_schedule && config.sync_schedule.time) || "00:00";
+        }
+
+        const now = new Date();
+        const hrs = String(now.getHours()).padStart(2, '0');
+        const mins = String(now.getMinutes()).padStart(2, '0');
+        const timeStr = `${hrs}:${mins}`;
+        
+        if (timeStr === currentSyncTime) {
+            console.log(`[${new Date().toISOString()}] Daily scheduler triggered. Starting auto sync...`);
+            try {
+                await dbExporter.exportAll();
+                console.log(`[${new Date().toISOString()}] Auto sync completed successfully.`);
+            } catch (err) {
+                console.error(`[${new Date().toISOString()}] Auto sync failed:`, err.message);
+            }
+        }
+    }, 60000); // Check every minute
 }
 
 async function testConnection() {
@@ -613,6 +648,106 @@ app.get('/api/status', (req, res) => {
         db_connected: currentMode === 'db',
         host: config.database ? config.database.host : null
     });
+});
+
+// Helper to verify DB password
+async function verifyDbPassword(inputUser, inputPassword) {
+    if (!config.database) return false;
+    const testPool = new Pool({
+        host: config.database.host,
+        port: config.database.port,
+        user: inputUser,
+        password: inputPassword,
+        database: config.database.database,
+        connectionTimeoutMillis: 3000
+    });
+    try {
+        const client = await testPool.connect();
+        client.release();
+        return true;
+    } catch (err) {
+        console.error('Password verification connection failed:', err.message);
+        return false;
+    } finally {
+        await testPool.end();
+    }
+}
+
+// API: Get Sync Config
+app.get('/api/admin/config', (req, res) => {
+    let time = '00:00';
+    let user = 'postgres';
+    try {
+        const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        time = (cfg.sync_schedule && cfg.sync_schedule.time) || '00:00';
+        user = (cfg.database && cfg.database.user) || 'postgres';
+    } catch (e) {
+        time = (config.sync_schedule && config.sync_schedule.time) || '00:00';
+        user = (config.database && config.database.user) || 'postgres';
+    }
+    res.json({ time, user });
+});
+
+// API: Save Sync Config (requires password verification)
+app.post('/api/admin/config', async (req, res) => {
+    const { user, password, time } = req.body;
+    if (!user || !time || !/^\d{2}:\d{2}$/.test(time)) {
+        return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน หรือรูปแบบเวลาไม่ถูกต้อง (ต้องเป็น HH:MM)' });
+    }
+
+    try {
+        const isValid = await verifyDbPassword(user, password);
+        if (!isValid) {
+            return res.status(401).json({ success: false, message: 'การยืนยันตัวตนล้มเหลว (ผู้ใช้หรือรหัสผ่านผิด)' });
+        }
+
+        let currentConfig = {};
+        try {
+            currentConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        } catch (e) {
+            currentConfig = config;
+        }
+
+        currentConfig.sync_schedule = { time };
+        if (!currentConfig.database) currentConfig.database = {};
+        currentConfig.database.user = user;
+        currentConfig.database.password = password;
+
+        fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2), 'utf8');
+        config = currentConfig;
+
+        console.log(`[${new Date().toISOString()}] Sync schedule time updated to ${time} and DB user to ${user} by admin.`);
+        res.json({ success: true, message: 'บันทึกเวลาและอัปเดตสิทธิ์เชื่อมต่อสำเร็จ' });
+    } catch (err) {
+        console.error('Failed to save config:', err);
+        res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดภายในระบบ: ' + err.message });
+    }
+});
+
+// API: Trigger manual sync (requires password verification)
+app.post('/api/admin/sync', async (req, res) => {
+    const { user, password } = req.body;
+    if (!user || !password) {
+        return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่านฐานข้อมูล' });
+    }
+
+    try {
+        const isValid = await verifyDbPassword(user, password);
+        if (!isValid) {
+            return res.status(401).json({ success: false, message: 'การยืนยันตัวตนล้มเหลว (ผู้ใช้หรือรหัสผ่านผิด)' });
+        }
+
+        console.log(`[${new Date().toISOString()}] Manual Database Sync triggered by admin user [${user}] via UI.`);
+        await dbExporter.exportAll();
+        
+        clearAllCaches();
+        loadCSVDataSources();
+
+        res.json({ success: true, message: 'ดึงข้อมูลจาก Database สำเร็จ และอัปโหลดไฟล์เรียบร้อยแล้ว' });
+    } catch (err) {
+        console.error('Manual sync failed:', err);
+        res.status(500).json({ success: false, message: 'การดึงข้อมูลล้มเหลว: ' + err.message });
+    }
 });
 
 // API: Manual reload all CSV data

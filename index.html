@@ -50,6 +50,9 @@
 <button class="theme-toggle-btn" id="btn-reload-data" title="โหลดข้อมูล CSV ใหม่ (Re-load)">
 <i class="fa-solid fa-arrows-rotate"></i>
 </button>
+<button class="theme-toggle-btn" id="btn-admin-settings" title="การตั้งค่าและดึงข้อมูลฐานข้อมูล (Admin)">
+<i class="fa-solid fa-gears"></i>
+</button>
 <button class="theme-toggle-btn" id="theme-toggle" title="เปลี่ยนโหมดสี">
 <i class="fa-solid fa-moon"></i>
 </button>
@@ -971,6 +974,56 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <!-- Application Logic -->
 <!-- Application Logic -->
+<!-- Admin Settings Modal -->
+<div class="admin-modal-overlay" id="admin-settings-modal">
+    <div class="admin-modal-content">
+        <h3 class="admin-modal-title">
+            <i class="fa-solid fa-gears"></i> ตั้งค่าระบบ Sync Database
+        </h3>
+        
+        <div class="admin-section-label">เวลาทำงานอัตโนมัติรายวัน</div>
+        <div class="time-picker-wrapper">
+            <div class="time-column">
+                <button class="time-arrow" id="time-hour-up" title="เพิ่มชั่วโมง"><i class="fa-solid fa-chevron-up"></i></button>
+                <input type="text" class="time-digit" id="time-hour" value="00" readonly>
+                <button class="time-arrow" id="time-hour-down" title="ลดชั่วโมง"><i class="fa-solid fa-chevron-down"></i></button>
+            </div>
+            <div class="time-separator">:</div>
+            <div class="time-column">
+                <button class="time-arrow" id="time-min-up" title="เพิ่มนาที"><i class="fa-solid fa-chevron-up"></i></button>
+                <input type="text" class="time-digit" id="time-minute" value="00" readonly>
+                <button class="time-arrow" id="time-minute-down" title="ลดนาที"><i class="fa-solid fa-chevron-down"></i></button>
+            </div>
+        </div>
+        
+        <div class="admin-section-label">ตรวจสอบสิทธิ์แอดมิน (ฐานข้อมูล)</div>
+        <div class="admin-form-group">
+            <label for="admin-db-username"><i class="fa-solid fa-user"></i> ชื่อผู้ใช้ฐานข้อมูล (User)</label>
+            <input type="text" class="admin-form-input" id="admin-db-username" placeholder="เช่น postgres">
+        </div>
+        
+        <div class="admin-form-group">
+            <label for="admin-db-password"><i class="fa-solid fa-key"></i> รหัสผ่านฐานข้อมูล (Password)</label>
+            <div class="password-input-wrapper">
+                <input type="password" class="admin-form-input" id="admin-db-password" placeholder="ป้อนรหัสผ่าน database">
+                <button type="button" class="btn-toggle-password" id="btn-toggle-password" title="แสดง/ซ่อนรหัสผ่าน">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="admin-sync-status" id="admin-sync-status"></div>
+        
+        <div class="admin-modal-actions">
+            <button class="admin-btn admin-btn-danger" id="btn-admin-sync" title="Sync ดึงข้อมูลจากฐานข้อมูลทันที">
+                <i class="fa-solid fa-cloud-arrow-down"></i> Sync ตอนนี้
+            </button>
+            <button class="admin-btn admin-btn-secondary" id="btn-admin-cancel">ยกเลิก</button>
+            <button class="admin-btn admin-btn-primary" id="btn-admin-save">บันทึกตั้งค่า</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/gridstack@11.1.1/dist/gridstack-all.js"></script><script src="app.js"></script>
 </body>
 </html>

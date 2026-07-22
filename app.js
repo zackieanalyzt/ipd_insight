@@ -255,6 +255,17 @@ const loadingOverlay = document.getElementById('loading');
 const resetFiltersBtn = document.getElementById('reset-filters');
 const themeToggleBtn = document.getElementById('theme-toggle');
 const reloadDataBtn = document.getElementById('btn-reload-data');
+const adminSettingsBtn = document.getElementById('btn-admin-settings');
+const adminModal = document.getElementById('admin-settings-modal');
+const adminHourInput = document.getElementById('time-hour');
+const adminMinuteInput = document.getElementById('time-minute');
+const adminDbUsernameInput = document.getElementById('admin-db-username');
+const adminDbPasswordInput = document.getElementById('admin-db-password');
+const btnTogglePassword = document.getElementById('btn-toggle-password');
+const adminStatusDiv = document.getElementById('admin-sync-status');
+const btnAdminSync = document.getElementById('btn-admin-sync');
+const btnAdminCancel = document.getElementById('btn-admin-cancel');
+const btnAdminSave = document.getElementById('btn-admin-save');
 const sidebarToggleBtn = document.getElementById('sidebar-toggle');
 const sidebarResizer = document.getElementById('sidebar-resizer');
 const sidebarElement = document.querySelector('aside.sidebar');
@@ -467,6 +478,193 @@ function setupEventListeners() {
                     hideLoading();
                     alert('โหลดข้อมูลใหม่ล้มเหลว กรุณาลองใหม่อีกครั้ง');
                 });
+        });
+    }
+
+    // Helper to show admin status message
+    function showAdminStatus(text, type) {
+        if (!adminStatusDiv) return;
+        adminStatusDiv.style.display = 'block';
+        adminStatusDiv.className = `admin-sync-status ${type}`;
+        adminStatusDiv.innerText = text;
+    }
+
+    // Time picker interactive arrow buttons
+    const btnHourUp = document.getElementById('time-hour-up');
+    const btnHourDown = document.getElementById('time-hour-down');
+    const btnMinUp = document.getElementById('time-min-up');
+    const btnMinDown = document.getElementById('time-min-down');
+
+    function adjustTime(inputEl, delta, max) {
+        if (!inputEl) return;
+        let val = parseInt(inputEl.value, 10) || 0;
+        val += delta;
+        if (val < 0) val = max;
+        if (val > max) val = 0;
+        inputEl.value = String(val).padStart(2, '0');
+    }
+
+    if (btnHourUp && adminHourInput) {
+        btnHourUp.addEventListener('click', () => adjustTime(adminHourInput, 1, 23));
+    }
+    if (btnHourDown && adminHourInput) {
+        btnHourDown.addEventListener('click', () => adjustTime(adminHourInput, -1, 23));
+    }
+    if (btnMinUp && adminMinuteInput) {
+        btnMinUp.addEventListener('click', () => adjustTime(adminMinuteInput, 1, 59));
+    }
+    if (btnMinDown && adminMinuteInput) {
+        btnMinDown.addEventListener('click', () => adjustTime(adminMinuteInput, -1, 59));
+    }
+
+    // Toggle Password Visibility
+    if (btnTogglePassword && adminDbPasswordInput) {
+        btnTogglePassword.addEventListener('click', () => {
+            const type = adminDbPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            adminDbPasswordInput.setAttribute('type', type);
+            const icon = btnTogglePassword.querySelector('i');
+            if (icon) {
+                if (type === 'text') {
+                    icon.className = 'fa-solid fa-eye-slash';
+                } else {
+                    icon.className = 'fa-solid fa-eye';
+                }
+            }
+        });
+    }
+
+    // Admin Settings gear button click
+    if (adminSettingsBtn && adminModal) {
+        adminSettingsBtn.addEventListener('click', () => {
+            if (adminDbPasswordInput) {
+                adminDbPasswordInput.value = '';
+                adminDbPasswordInput.setAttribute('type', 'password');
+            }
+            const icon = btnTogglePassword ? btnTogglePassword.querySelector('i') : null;
+            if (icon) icon.className = 'fa-solid fa-eye';
+
+            if (adminStatusDiv) adminStatusDiv.style.display = 'none';
+            
+            fetch('/api/admin/config')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.time) {
+                        const parts = data.time.split(':');
+                        if (adminHourInput) adminHourInput.value = parts[0] || '00';
+                        if (adminMinuteInput) adminMinuteInput.value = parts[1] || '00';
+                    }
+                    if (adminDbUsernameInput && data.user) {
+                        adminDbUsernameInput.value = data.user;
+                    }
+                    adminModal.classList.add('active');
+                })
+                .catch(err => {
+                    console.error('Failed to load sync config:', err);
+                    alert('ไม่สามารถโหลดข้อมูลตั้งค่าได้');
+                });
+        });
+    }
+
+    // Admin Settings Cancel
+    if (btnAdminCancel && adminModal) {
+        btnAdminCancel.addEventListener('click', () => {
+            adminModal.classList.remove('active');
+        });
+    }
+
+    // Admin Settings Save Time
+    if (btnAdminSave && adminModal) {
+        btnAdminSave.addEventListener('click', () => {
+            const hour = adminHourInput ? adminHourInput.value.trim() : '00';
+            const minute = adminMinuteInput ? adminMinuteInput.value.trim() : '00';
+            const time = `${hour}:${minute}`;
+            const user = adminDbUsernameInput ? adminDbUsernameInput.value.trim() : '';
+            const password = adminDbPasswordInput ? adminDbPasswordInput.value : '';
+
+            if (!user) {
+                showAdminStatus('กรุณากรอกชื่อผู้ใช้ฐานข้อมูล (User)', 'error');
+                return;
+            }
+            if (!password) {
+                showAdminStatus('กรุณากรอกรหัสผ่านเพื่อตรวจสอบสิทธิ์', 'error');
+                return;
+            }
+
+            showAdminStatus('กำลังบันทึก...', 'info');
+            btnAdminSave.disabled = true;
+
+            fetch('/api/admin/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user, password, time })
+            })
+            .then(async res => {
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    showAdminStatus('บันทึกเวลาและอัปเดตสิทธิ์เชื่อมต่อสำเร็จ!', 'success');
+                    setTimeout(() => {
+                        adminModal.classList.remove('active');
+                    }, 1500);
+                } else {
+                    showAdminStatus(data.message || 'บันทึกไม่สำเร็จ', 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Save config failed:', err);
+                showAdminStatus('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
+            })
+            .finally(() => {
+                btnAdminSave.disabled = false;
+            });
+        });
+    }
+
+    // Admin Settings Sync Now
+    if (btnAdminSync && adminModal) {
+        btnAdminSync.addEventListener('click', () => {
+            const user = adminDbUsernameInput ? adminDbUsernameInput.value.trim() : '';
+            const password = adminDbPasswordInput ? adminDbPasswordInput.value : '';
+
+            if (!user) {
+                showAdminStatus('กรุณากรอกชื่อผู้ใช้ฐานข้อมูล (User)', 'error');
+                return;
+            }
+            if (!password) {
+                showAdminStatus('กรุณากรอกรหัสผ่านเพื่อสั่งดึงข้อมูล', 'error');
+                return;
+            }
+
+            showAdminStatus('กำลังดึงข้อมูลจาก Database (ขั้นตอนนี้อาจใช้เวลา 1-2 นาที)...', 'info');
+            btnAdminSync.disabled = true;
+            if (btnAdminSave) btnAdminSave.disabled = true;
+            if (btnAdminCancel) btnAdminCancel.disabled = true;
+
+            fetch('/api/admin/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user, password })
+            })
+            .then(async res => {
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    showAdminStatus('ดึงข้อมูลสำเร็จและอัปเดตระบบเรียบร้อย!', 'success');
+                    loadAllData();
+                    setTimeout(() => {
+                        adminModal.classList.remove('active');
+                    }, 2000);
+                } else {
+                    showAdminStatus(data.message || 'การดึงข้อมูลล้มเหลว', 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Manual sync failed:', err);
+                showAdminStatus('เกิดข้อผิดพลาดในการดึงข้อมูล', 'error');
+            })
+            .finally(() => {
+                btnAdminSync.disabled = false;
+                if (btnAdminSave) btnAdminSave.disabled = false;
+                if (btnAdminCancel) btnAdminCancel.disabled = false;
+            });
         });
     }
 
