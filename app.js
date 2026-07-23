@@ -853,23 +853,27 @@ function switchTab(tab) {
     if (tab === 'cmi') {
         cmiFiltersContainer.classList.add('active');
         cmiDashboardContent.classList.add('active');
-        initGridStack('cmi');
         updateCMIDashboard();
     } else if (tab === 'transfer') {
         transferFiltersContainer.classList.add('active');
         transferDashboardContent.classList.add('active');
-        initGridStack('transfer');
         updateTransferDashboard();
     } else if (tab === 'items') {
         itemsFiltersContainer.classList.add('active');
         itemsDashboardContent.classList.add('active');
-        initGridStack('items');
         updateItemsDashboard();
     } else if (tab === 'opd') {
         opdFiltersContainer.classList.add('active');
         opdDashboardContent.classList.add('active');
-        initGridStack('opd');
         updateOpdDashboard();
+    }
+
+    // Reflow GridStack for the active tab (ensures proper layout after tab switch)
+    if (grids[tab]) {
+        setTimeout(() => {
+            grids[tab].compact();
+            window.dispatchEvent(new Event('resize'));
+        }, 50);
     }
 }
 
@@ -1271,12 +1275,22 @@ function onAllDataReady() {
     initCmiBenchmark();
     updateLatestDataBadges();
     hideLoading();
-    
+
     // Render default CMI tab
     updateCMIDashboard();
 
     // Auto-setup fullscreen + resize for ALL chart containers (template)
     setupAllChartFullscreen();
+
+    // Refresh all GridStack layouts after data is rendered
+    setTimeout(() => {
+        ['cmi', 'transfer', 'items', 'opd'].forEach(tab => {
+            if (grids[tab]) {
+                grids[tab].compact();
+            }
+        });
+        window.dispatchEvent(new Event('resize'));
+    }, 200);
 }
 
 // -----------------------------------------------------------------------------
@@ -3857,45 +3871,53 @@ function setupOpdEventListeners() {
 
 // --- GridStack Integration ---
 let grids = {};
-function initGridStack(tab) {
-    if (!tab) {
-        // Initialize visible grid on startup
-        initGridStack('cmi');
-        return;
-    }
+function initGridStack() {
+    const gridOptions = {
+        column: 12,
+        cellHeight: '80px',
+        margin: '10px',
+        resizable: { handles: 'e, se, s, sw, w, nw, n, ne' },
+        handle: '.kpi-header, .panel-header, .table-header, .breakdown-title'
+    };
     
-    if (grids[tab]) {
-        // If already initialized, trigger resize update since container visibility changed
-        grids[tab].onParentResize();
-        return;
-    }
+    const tabs = ['cmi', 'transfer', 'items', 'opd'];
+    const originalDisplays = {};
     
-    const el = document.querySelector('#grid-' + tab);
-    if (el) {
-        const gridOptions = {
-            column: 12,
-            cellHeight: '80px',
-            margin: '10px',
-            resizable: { handles: 'e, se, s, sw, w, nw, n, ne' },
-            handle: '.kpi-header, .panel-header, .table-header, .breakdown-title'
-        };
-        grids[tab] = GridStack.init(gridOptions, el);
-        
-        // Listen to resize stop to redraw charts
-        grids[tab].on('resizestop', function(event, el) {
-            if (typeof resizeAllCharts === 'function') {
-                resizeAllCharts();
+    // 1. Temporarily force all dashboard contents to be visible so GridStack can read their widths
+    tabs.forEach(tab => {
+        const el = document.getElementById(tab + '-dashboard-content');
+        if (el) {
+            originalDisplays[tab] = el.style.display;
+            el.style.display = 'block';
+            el.classList.add('active'); // ensure it gets display: block from CSS
+        }
+    });
+    
+    // 2. Initialize GridStack on all grids
+    tabs.forEach(tab => {
+        const el = document.querySelector('#grid-' + tab);
+        if (el) {
+            grids[tab] = GridStack.init(gridOptions, el);
+            
+            grids[tab].on('resizestop', function(event, el) {
+                if (typeof resizeAllCharts === 'function') {
+                    resizeAllCharts();
+                }
+                window.dispatchEvent(new Event('resize'));
+            });
+        }
+    });
+    
+    // 3. Restore original visibility states
+    tabs.forEach(tab => {
+        const el = document.getElementById(tab + '-dashboard-content');
+        if (el) {
+            el.style.display = originalDisplays[tab];
+            if (tab !== 'cmi') {
+                el.classList.remove('active');
             }
-            window.dispatchEvent(new Event('resize'));
-        });
-        
-        // Call parent resize immediately after initialization to ensure correct positioning
-        setTimeout(() => {
-            if (grids[tab]) {
-                grids[tab].onParentResize();
-            }
-        }, 50);
-    }
+        }
+    });
 }
 
 // -----------------------------------------------------------------------------

@@ -1901,7 +1901,7 @@ body.dark-mode .exit-fullscreen-btn:hover {
     flex: 1;
     min-height: 0;
 }
-
+.chart-fullscreen {
     background-color: var(--bg-primary, #f8fafc);
     padding: 1.5rem 2rem 2rem 2rem !important;
     margin: 0 !important;
