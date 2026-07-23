@@ -853,18 +853,22 @@ function switchTab(tab) {
     if (tab === 'cmi') {
         cmiFiltersContainer.classList.add('active');
         cmiDashboardContent.classList.add('active');
+        initGridStack('cmi');
         updateCMIDashboard();
     } else if (tab === 'transfer') {
         transferFiltersContainer.classList.add('active');
         transferDashboardContent.classList.add('active');
+        initGridStack('transfer');
         updateTransferDashboard();
     } else if (tab === 'items') {
         itemsFiltersContainer.classList.add('active');
         itemsDashboardContent.classList.add('active');
+        initGridStack('items');
         updateItemsDashboard();
     } else if (tab === 'opd') {
         opdFiltersContainer.classList.add('active');
         opdDashboardContent.classList.add('active');
+        initGridStack('opd');
         updateOpdDashboard();
     }
 }
@@ -3853,31 +3857,45 @@ function setupOpdEventListeners() {
 
 // --- GridStack Integration ---
 let grids = {};
-function initGridStack() {
-    const gridOptions = {
-        column: 12,
-        cellHeight: '80px',
-        margin: '10px',
-        resizable: { handles: 'e, se, s, sw, w, nw, n, ne' },
-        handle: '.kpi-header, .panel-header, .table-header, .breakdown-title'
-    };
+function initGridStack(tab) {
+    if (!tab) {
+        // Initialize visible grid on startup
+        initGridStack('cmi');
+        return;
+    }
     
-    // Initialize grids for each tab
-    ['cmi', 'transfer', 'items', 'opd'].forEach(tab => {
-        const el = document.querySelector('#grid-' + tab);
-        if (el) {
-            grids[tab] = GridStack.init(gridOptions, el);
-            
-            // Listen to resize stop to redraw charts
-            grids[tab].on('resizestop', function(event, el) {
-                if (typeof resizeAllCharts === 'function') {
-                    resizeAllCharts();
-                }
-                // Trigger window resize for extra safety
-                window.dispatchEvent(new Event('resize'));
-            });
-        }
-    });
+    if (grids[tab]) {
+        // If already initialized, trigger resize update since container visibility changed
+        grids[tab].onParentResize();
+        return;
+    }
+    
+    const el = document.querySelector('#grid-' + tab);
+    if (el) {
+        const gridOptions = {
+            column: 12,
+            cellHeight: '80px',
+            margin: '10px',
+            resizable: { handles: 'e, se, s, sw, w, nw, n, ne' },
+            handle: '.kpi-header, .panel-header, .table-header, .breakdown-title'
+        };
+        grids[tab] = GridStack.init(gridOptions, el);
+        
+        // Listen to resize stop to redraw charts
+        grids[tab].on('resizestop', function(event, el) {
+            if (typeof resizeAllCharts === 'function') {
+                resizeAllCharts();
+            }
+            window.dispatchEvent(new Event('resize'));
+        });
+        
+        // Call parent resize immediately after initialization to ensure correct positioning
+        setTimeout(() => {
+            if (grids[tab]) {
+                grids[tab].onParentResize();
+            }
+        }, 50);
+    }
 }
 
 // -----------------------------------------------------------------------------
