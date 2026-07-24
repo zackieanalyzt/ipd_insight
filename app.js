@@ -463,7 +463,7 @@ function setupEventListeners() {
     if (reloadDataBtn) {
         reloadDataBtn.addEventListener('click', () => {
             reloadDataBtn.classList.add('reload-spinning');
-            fetch('/api/reload', { method: 'POST' })
+            fetch('api/reload', { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
@@ -545,7 +545,7 @@ function setupEventListeners() {
 
             if (adminStatusDiv) adminStatusDiv.style.display = 'none';
             
-            fetch('/api/admin/config')
+            fetch('api/admin/config')
                 .then(res => res.json())
                 .then(data => {
                     if (data.time) {
@@ -593,7 +593,7 @@ function setupEventListeners() {
             showAdminStatus('กำลังบันทึก...', 'info');
             btnAdminSave.disabled = true;
 
-            fetch('/api/admin/config', {
+            fetch('api/admin/config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user, password, time })
@@ -639,7 +639,7 @@ function setupEventListeners() {
             if (btnAdminSave) btnAdminSave.disabled = true;
             if (btnAdminCancel) btnAdminCancel.disabled = true;
 
-            fetch('/api/admin/sync', {
+            fetch('api/admin/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user, password })

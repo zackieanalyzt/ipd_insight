@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  ipd-insight:
+    build: .
+    container_name: ipd-insight-app
+    restart: always
+    ports:
+      - "3355:3355"
+    
+    environment:
+      - BASE_PATH=/hmis
+
+    # Allocate resource limits to handle heavy CSV processing (Max Old Space Size: 4GB)
+    deploy:
+      resources:
+        limits:
+          memory: 5G
+        reservations:
+          memory: 2G
+
+    # Setup connection to local host networks if using localhost as DB IP
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Mount configurations and database files from the physical host server.
+    # This allows updating CSV files or DB settings on the host without rebuilding the container.
+    volumes:
+      - ./config.json:/app/config.json
+      # Mount main data CSVs
+      - ./ipd_cmi.csv:/app/ipd_cmi.csv
+      - ./fundtransfer.csv:/app/fundtransfer.csv
+      - ./items_summary_aggregated.csv:/app/items_summary_aggregated.csv
+      - ./opd_visit_summary.csv:/app/opd_visit_summary.csv
+      - ./opd_diag_summary.csv:/app/opd_diag_summary.csv
+      - ./opd_dept_summary.csv:/app/opd_dept_summary.csv
+      - ./opd_age_summary.csv:/app/opd_age_summary.csv
+      - ./opd_location_summary.csv:/app/opd_location_summary.csv

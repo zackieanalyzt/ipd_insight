@@ -9,6 +9,37 @@ const app = express();
 
 app.use(express.json());
 
+// Dynamic subpath support for reverse proxies (e.g. /hmis)
+const basePath = (process.env.BASE_PATH || '').replace(/\/+$/, ''); // remove trailing slashes
+if (basePath) {
+    console.log(`[${new Date().toISOString()}] Configuring application to run under BASE_PATH: ${basePath}`);
+    
+    // Patch app.get to register endpoints with basePath prefix
+    const originalGet = app.get.bind(app);
+    app.get = function(path, ...handlers) {
+        originalGet(path, ...handlers);
+        if (typeof path === 'string' && path.startsWith('/')) {
+            originalGet(basePath + path, ...handlers);
+        }
+    };
+
+    // Patch app.post to register endpoints with basePath prefix
+    const originalPost = app.post.bind(app);
+    app.post = function(path, ...handlers) {
+        originalPost(path, ...handlers);
+        if (typeof path === 'string' && path.startsWith('/')) {
+            originalPost(basePath + path, ...handlers);
+        }
+    };
+
+    // Redirect basePath to index.html
+    app.get(basePath, (req, res) => res.redirect(basePath + '/index.html'));
+    app.get(basePath + '/', (req, res) => res.redirect(basePath + '/index.html'));
+    
+    // Serve static files on basePath
+    app.use(basePath, express.static(path.join(__dirname, '.')));
+}
+
 // Load configuration
 let config = {};
 const configPath = path.join(__dirname, 'config.json');
