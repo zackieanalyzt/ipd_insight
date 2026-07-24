@@ -27,6 +27,8 @@ services:
     # This allows updating CSV files or DB settings on the host without rebuilding the container.
     volumes:
       - ./config.json:/app/config.json
+      # Mount Sync history logs
+      - ./sync_history.log:/app/sync_history.log
       # Mount main data CSVs
       - ./ipd_cmi.csv:/app/ipd_cmi.csv
       - ./fundtransfer.csv:/app/fundtransfer.csv

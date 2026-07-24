@@ -16,6 +16,18 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 
+// Persistent Log File configuration
+const logFilePath = path.join(__dirname, 'sync_history.log');
+function logToFile(message) {
+    try {
+        const timestamp = new Date().toISOString();
+        const logLine = `[${timestamp}] ${message}\n`;
+        fs.appendFileSync(logFilePath, logLine, 'utf8');
+    } catch (err) {
+        console.error('Failed to write to sync_history.log:', err.message);
+    }
+}
+
 // Load config
 const configPath = path.join(__dirname, 'config.json');
 let config = {};
@@ -23,6 +35,7 @@ try {
     config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 } catch (e) {
     console.error('Failed to load config.json:', e.message);
+    logToFile(`ERROR: Failed to load config.json: ${e.message}`);
 }
 
 const pool = config.database ? new Pool(config.database) : null;
@@ -218,14 +231,20 @@ async function exportTable(key) {
         const fileSize = (fs.statSync(outputPath).size / 1024 / 1024).toFixed(2);
         
         if (isIncremental) {
-            console.log(`[${new Date().toISOString()}] Incremental finished for "${spec.table}": Appended ${rowCount.toLocaleString()} new rows. Current size: ${fileSize} MB in ${elapsed}s`);
+            const msg = `SUCCESS: Table "${spec.table}" synced (Incremental). Appended ${rowCount.toLocaleString()} new rows. Current size: ${fileSize} MB in ${elapsed}s.`;
+            console.log(`[${new Date().toISOString()}] ${msg}`);
+            logToFile(msg);
         } else {
-            console.log(`[${new Date().toISOString()}] Full finished for "${spec.table}": Written ${rowCount.toLocaleString()} rows, ${fileSize} MB in ${elapsed}s`);
+            const msg = `SUCCESS: Table "${spec.table}" synced (Full). Written ${rowCount.toLocaleString()} rows. Current size: ${fileSize} MB in ${elapsed}s.`;
+            console.log(`[${new Date().toISOString()}] ${msg}`);
+            logToFile(msg);
         }
 
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error(`Failed to export ${key}:`, err.message);
+        const errMsg = `ERROR: Table "${spec.table}" failed to sync: ${err.message}`;
+        console.error(`[${new Date().toISOString()}] ${errMsg}`);
+        logToFile(errMsg);
         writeStream.end();
     } finally {
         client.release();
