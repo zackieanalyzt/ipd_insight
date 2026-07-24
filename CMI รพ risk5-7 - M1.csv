@@ -1,0 +1,92 @@
+,,สันป่าตอง,เชียงคำ,จอมทอง,ฝาง,สันทราย
+,HOSCODE,11128,10718,11119,11125,11130
+,,M1,M1,M1,M1,M1
+I10,Essential (primary) hypertension,0.35,0.38,0.48,0.36,0.45
+A09,Diarrhoea and gastroenteritis of presumed infectious origin,0.42,0.52,0.50,0.54,0.41
+J44,Other chronic obstructive pulmonary disease,2.27,2.45,2.97,2.55,2.28
+N39,Other disorders of urinary system,1.60,1.85,1.17,1.74,1.85
+D56,Thalassaemia,0.45,0.42,0.53,0.52,0.54
+R50,Fever of unknown origin,0.60,0.85,0.47,1.11,0.61
+J18,"Pneumonia, organism unspecified",2.00,2.12,2.40,1.70,1.55
+E11,Non-insulin-dependent diabetes mellitus,0.89,0.70,1.17,1.25,1.76
+R10,Abdominal and pelvic pain,0.50,0.40,0.61,0.61,0.38
+J20,Acute bronchitis,0.62,0.90,0.63,0.91,0.48
+J10,Influenza due to identified influenza virus,1.62,1.26,0.86,1.64,0.60
+J12,"Viral pneumonia, not elsewhere classified",2.42,1.70,2.23,1.33,1.81
+T79,"Certain early complications of trauma, not elsewhere classified",1.38,1.58,1.75,1.95,1.28
+J15,"Bacterial pneumonia, not elsewhere classified",5.12,4.93,3.21,4.42,4.34
+I50,Heart failure,1.75,2.10,2.17,1.54,1.68
+F10,Mental and behavioral disorders due to use of alcohol,1.29,1.12,0.94,0.94,0.75
+N18,Chronic renal failure,1.37,1.26,1.53,1.61,2.00
+F15,Mental and behavioral disorders due to use of other stimulants including caffeine,1.09,1.89,1.18,0.87,0
+N17,Acute renal failure,1.08,1.25,1.84,1.46,1.44
+S01,Open wound of head,0.65,0.92,0.62,0.99,0.73
+N10,Acute tubulo-interstitial nephritis,1.24,1.18,2.01,1.79,1.26
+R42,Dizziness and giddiness,0.26,0.31,0.33,0.89,0.29
+S00,Superficial injury of head,0.42,1.13,0.38,0.43,0.37
+S06,Intracranial injury,1.57,1.33,1.11,1.27,1.70
+A27,Leptospirosis,0.58,1.31,0.70,0.86,1.38
+A75,Typhus fever,0.55,1.04,1.88,0.92,0.91
+E87,"Other disorders of fluid, electrolyte and acid-base balance",1.05,0.79,1.41,1.39,0.66
+T63,Toxic effect of contact with venomous animals,0.31,0.34,0.45,1.06,0.70
+T78,"Adverse effects, not elsewhere classified",0.22,0.25,0.23,0.30,0.21
+G40,Epilepsy,0.74,0.69,1.02,0.78,0.81
+J21,Acute bronchiolitis,1.06,0.82,0.95,0.58,0.63
+Z38,Liveborn infants according to place of birth,0.29,0.28,0.32,0.34,0.28
+L03,Cellulitis,1.08,1.37,1.29,1.00,0.81
+O80,Single spontaneous delivery,0.51,0.45,0.49,0.49,0.52
+A41,Other septicaemia,3.11,4.27,2.70,4.23,2.06
+R11,Nausea and vomiting,0,0.43,0.44,0.54,0.26
+L50,Urticaria,0.33,0.42,0.33,0.33,0.33
+C22,Malignant neoplasm of liver and intrahepatic bile ducts,1.99,3.10,3.05,2.78,2.41
+A08,Viral and other specified intestinal infections,0.31,0.27,0.28,0.29,0.27
+H81,Disorders of vestibular function,0.28,0.48,0.33,0.41,0.33
+K92,Other diseases of digestive system,0.93,1.64,1.05,1.27,1.14
+S22,"Fracture of rib(s), sternum and thoracic spine",1.01,1.14,1.23,1.18,0.98
+I95,Hypotension,0.92,0.62,1.03,0.76,0.74
+M10,Gout,0.51,1.26,0,1.22,1.18
+J45,Asthma,0.81,0.82,1.16,0.91,0.81
+R55,Syncope and collapse,0.46,0.46,0.73,0.53,0.45
+K56,Paralytic ileus and intestinal obstruction without hernia,2.27,2.21,3.41,2.66,3.30
+I48,Atrial fibrillation and flutter,0.72,0.72,0.94,0.72,0.82
+A05,Other bacterial foodborne intoxications,0.29,0.62,0.31,0.27,0.45
+S32,Fracture of lumbar spine and pelvis,0.69,2.27,1.20,2.64,1.43
+F32,Depressive episodes,0.72,0.94,0.48,0.40,0.40
+K52,Other noninfective gastroenteritis and colitis,0.95,0.89,0.67,0.69,1.25
+J03,Acute tonsillitis,0.38,0.34,0.45,0.32,0.49
+K30,Dyspepsia,0.77,0.36,0.88,0,0.32
+M62,Other disorders of muscle,0.44,1.11,0.65,0.86,0.93
+R56,"Convulsions, not elsewhere classified",0.77,0.56,0.75,0.59,0.57
+J11,"Influenza, virus not identified",0,0.96,0.57,1.63,0.64
+J02,Acute pharyngitis,0.36,0.37,0.36,0.60,0.35
+M47,Spondylosis,1.32,0.93,1.16,0.87,4.19
+K59,Other functional intestinal disorders,0.44,0.48,0.73,0.89,0.83
+S91,Open wound of ankle and foot,0.65,0.66,0.82,3.05,0.73
+K29,Gastritis and duodenitis,1.01,1.28,0.91,1.60,0.92
+S62,Fracture at wrist and hand level,1.15,1.34,1.29,1.40,1.20
+A04,Other bacterial intestinal infections,0.47,0.33,0.31,0.47,0.39
+N20,Calculus of kidney and ureter,1.08,2.11,1.99,1.69,2.08
+E16,Other disorders of pancreatic internal secretion,0.54,0.54,0.66,0.52,0.48
+L89,Decubitus ulcer,2.40,2.24,4.94,4.51,3.97
+J00,Acute nasopharyngitis [common cold],0.32,0.32,0.35,0,0.41
+A15,"Respiratory tuberculosis, bacteriologically and histologically confirmed",2.46,3.05,2.49,3.81,2.86
+K70,Alcoholic liver disease,1.72,1.84,2.46,2.61,1.78
+L02,"Cutaneous abscess, furuncle and carbuncle",1.66,1.67,1.37,1.55,1.56
+M48,Other spondylopathies,4.67,1.65,0.75,5.09,2.99
+M13,Other arthritis,0,0.69,0.84,4.04,0.51
+E10,Insulin-dependent diabetes mellitus,0.41,1.28,0.96,1.35,1.01
+S92,"Fracture of foot, except ankle",1.34,1.97,1.44,1.26,1.46
+R00,Abnormalities of heart beat,0.58,0.67,0.71,0.85,0.66
+G44,Other headache syndromes,0.31,0,0.58,0,0
+C34,Malignant neoplasm of bronchus and lung,2.76,3.04,2.99,2.26,2.21
+S42,Fracture of shoulder and upper arm,2.26,1.89,1.84,2.35,2.53
+J40,"Bronchitis, not specified as acute or chronic",0.60,0.65,1.57,0.84,0.93
+J46,Status asthmaticus,2.13,1.44,0,1.66,2.71
+R07,Pain in throat and chest,0.36,0.59,0,0.49,0.45
+S61,Open wound of wrist and hand,0.57,0.64,0.83,1.04,0.57
+K35,Acute appendicitis,1.50,1.55,1.54,1.69,1.68
+N30,Cystitis,0.90,1.11,0.72,0.86,1.32
+I47,Paroxysmal tachycardia,0.60,0.89,0.94,0.79,1.13
+R53,Malaise and fatigue,0.30,0,0.51,0.59,0.37
+K21,Gastro-oesophageal reflux disease,0.77,0.57,0.86,1.27,0.85
+F19,Mental and behavioral disorders due to use of multiple drug use and use of other psychoactive substances,0.70,2.03,1.13,0,0
