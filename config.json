@@ -19,13 +19,15 @@
     "opd_diag": "opd_diag_summary.csv",
     "opd_dept": "opd_dept_summary.csv",
     "opd_age": "opd_age_summary.csv",
-    "opd_loc": "opd_location_summary.csv"
+    "opd_loc": "opd_location_summary.csv",
+    "ipd":"ipd_visit.csv"	
   },
   "db_tables": {
     "cmi": "ipd_cmi",
     "transfers": "fundtransfer",
     "items": "view_items_summary_aggregated",
-    "opd": "view_opd_visit_summary"
+    "opd": "view_opd_visit_summary",
+    "ipd_visit": "ipd_visit"
   },
   "sync_schedule": {
     "time": "00:00"
@@ -33,5 +35,12 @@
   "failover": {
     "heartbeat_interval_ms": 10000,
     "db_timeout_ms": 3000
+  },
+  "redis": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 6379,
+    "password": "",
+    "ttl_seconds": 300
   }
 }

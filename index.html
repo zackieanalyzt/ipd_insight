@@ -41,6 +41,9 @@
 <button class="portal-tab-btn" data-tab="opd">
 <i class="fa-solid fa-hospital"></i> วิเคราะห์ผู้ป่วยนอก (OPD)
             </button>
+<button class="portal-tab-btn" data-tab="refer">
+<i class="fa-solid fa-truck-medical"></i> การส่งต่อผู้ป่วยใน (Refer IPD)
+            </button>
 </nav>
 <div class="header-actions">
 <div class="data-source-badge" id="data-source-badge">
@@ -335,6 +338,68 @@
 </select>
 </div>
 </div>
+</div>
+<!-- Dashboard 5: Refer IPD Filters -->
+<div class="sidebar-tab-filters" id="refer-filters-container">
+    <!-- Fiscal Year Filter -->
+    <div class="sidebar-section">
+        <div class="sidebar-section-header">
+            <h3>ปีงบประมาณ (byear)</h3>
+            <div class="bulk-select-links">
+                <span class="bulk-btn" onclick="bulkSelect('refer-year-filters', true)">ทั้งหมด</span>
+                <span class="bulk-divider">|</span>
+                <span class="bulk-btn" onclick="bulkSelect('refer-year-filters', false)">เคลียร์</span>
+            </div>
+        </div>
+        <div class="checkbox-group" id="refer-year-filters">
+            <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดปีงบประมาณ...</p>
+        </div>
+    </div>
+    <!-- Scheme Filter -->
+    <div class="sidebar-section">
+        <div class="sidebar-section-header">
+            <h3>สิทธิ์การรักษา (pttype)</h3>
+            <div class="bulk-select-links">
+                <span class="bulk-btn" onclick="bulkSelect('refer-scheme-filters', true)">ทั้งหมด</span>
+                <span class="bulk-divider">|</span>
+                <span class="bulk-btn" onclick="bulkSelect('refer-scheme-filters', false)">เคลียร์</span>
+            </div>
+        </div>
+        <div class="checkbox-group" id="refer-scheme-filters">
+            <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดสิทธิ์...</p>
+        </div>
+    </div>
+    <!-- Month Filter -->
+    <div class="sidebar-section">
+        <div class="sidebar-section-header">
+            <h3>เดือนที่รับการรักษา</h3>
+            <div class="bulk-select-links">
+                <span class="bulk-btn" onclick="bulkSelect('refer-month-filters', true)">ทั้งหมด</span>
+                <span class="bulk-divider">|</span>
+                <span class="bulk-btn" onclick="bulkSelect('refer-month-filters', false)">เคลียร์</span>
+            </div>
+        </div>
+        <div class="month-checkbox-grid" id="refer-month-filters">
+            <p style="color: var(--text-sidebar-muted); font-size: 0.85rem;">กำลังโหลดเดือน...</p>
+        </div>
+    </div>
+    <!-- Target Hospital Dropdown Filter -->
+    <div class="sidebar-section">
+        <h3>โรงพยาบาลปลายทาง</h3>
+        <div class="select-wrapper">
+            <select class="custom-select" id="refer-hospital-select">
+                <option value="all">-- ทุกโรงพยาบาลปลายทาง --</option>
+            </select>
+        </div>
+    </div>
+    <!-- MDC / DRG Search Filter -->
+    <div class="sidebar-section">
+        <h3>ค้นหาด้วย MDC หรือ DRG</h3>
+        <div class="search-input-wrapper" style="max-width: 100%;">
+            <i class="fa-solid fa-magnifying-glass" style="color: var(--text-sidebar-muted);"></i>
+            <input class="sidebar-input" id="refer-mdc-drg-search" placeholder="พิมพ์รหัส MDC หรือ DRG เช่น 20, 5012..." style="padding-left: 2.2rem;" type="text"/>
+        </div>
+    </div>
 </div>
 <!-- Reset Filters Button -->
 <button class="btn btn-primary" id="reset-filters" style="margin-top: auto; justify-content: center;">
@@ -965,6 +1030,163 @@
 <canvas id="opdDiagChart"></canvas>
 </div>
 </div></div></div></div></div>
+<!-- DASHBOARD 5: REFER IPD CONTENT -->
+<div class="portal-tab-content" id="refer-dashboard-content">
+  <div class="grid-stack" id="grid-refer">
+    <!-- KPI 1 -->
+    <div class="grid-stack-item" gs-h="2" gs-w="4">
+      <div class="grid-stack-item-content">
+        <div class="kpi-card" id="kpi-refer-total-cases" style="width: 100%; height: 100%">
+          <div class="kpi-header">
+            <span>จำนวนผู้ป่วยในทั้งหมด (Total IPD Cases)</span>
+            <i class="fa-solid fa-hospital-user kpi-icon" style="color: var(--primary);"></i>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+            <div class="kpi-value" id="val-refer-total-cases" style="margin: 0.5rem 0 0 0;">0</div>
+            <span class="kpi-change-badge" id="badge-refer-total-cases" style="display: none;"></span>
+          </div>
+          <div class="kpi-meta">
+            <i class="fa-solid fa-calculator"></i>
+            <span>ราย</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- KPI 2 -->
+    <div class="grid-stack-item" gs-h="2" gs-w="4">
+      <div class="grid-stack-item-content">
+        <div class="kpi-card" id="kpi-refer-out-cases" style="width: 100%; height: 100%">
+          <div class="kpi-header">
+            <span>จำนวนส่งต่อทั้งหมด (Total Refer-outs)</span>
+            <i class="fa-solid fa-truck-medical kpi-icon" style="color: #ef4444;"></i>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+            <div class="kpi-value" id="val-refer-out-cases" style="color: #ef4444; margin: 0.5rem 0 0 0;">0</div>
+            <span class="kpi-change-badge" id="badge-refer-out-cases" style="display: none;"></span>
+          </div>
+          <div class="kpi-meta">
+            <i class="fa-solid fa-arrow-right-to-bracket"></i>
+            <span>ราย</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- KPI 3 -->
+    <div class="grid-stack-item" gs-h="2" gs-w="4">
+      <div class="grid-stack-item-content">
+        <div class="kpi-card" id="kpi-refer-rate" style="width: 100%; height: 100%">
+          <div class="kpi-header">
+            <span>อัตราการส่งต่อ (Refer-out Rate)</span>
+            <i class="fa-solid fa-percent kpi-icon" style="color: #f59e0b;"></i>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+            <div class="kpi-value" id="val-refer-rate" style="color: #f59e0b; margin: 0.5rem 0 0 0;">0.0%</div>
+            <span class="kpi-change-badge" id="badge-refer-rate" style="display: none;"></span>
+          </div>
+          <div class="kpi-meta">
+            <i class="fa-solid fa-arrow-trend-up"></i>
+            <span>เทียบกับผู้ป่วยในทั้งหมด</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart 1: Hospital -->
+    <div class="grid-stack-item" gs-h="6" gs-w="6">
+      <div class="grid-stack-item-content">
+        <div class="visual-container" style="width: 100%; height: 100%">
+          <div class="panel-header">
+            <div class="panel-title">
+              <i class="fa-solid fa-hospital" style="color: var(--primary);"></i>
+              <span>โรงพยาบาลปลายทางที่ส่งต่อสูงสุด (Top Destination Hospitals)</span>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="referHospitalChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart 2: MDC -->
+    <div class="grid-stack-item" gs-h="6" gs-w="6">
+      <div class="grid-stack-item-content">
+        <div class="visual-container" style="width: 100%; height: 100%">
+          <div class="panel-header">
+            <div class="panel-title">
+              <i class="fa-solid fa-viruses" style="color: var(--primary);"></i>
+              <span>การส่งต่อแยกตามกลุ่มโรค MDC (Referrals by MDC)</span>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="referMdcChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart 3: Trend -->
+    <div class="grid-stack-item" gs-h="5" gs-w="12">
+      <div class="grid-stack-item-content">
+        <div class="visual-container" style="width: 100%; height: 100%">
+          <div class="panel-header">
+            <div class="panel-title">
+              <i class="fa-solid fa-chart-line" style="color: var(--primary);"></i>
+              <span>แนวโน้มการส่งต่อรายเดือน (Monthly Referral Trend)</span>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="referTrendChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="grid-stack-item" gs-h="6" gs-w="12">
+      <div class="grid-stack-item-content">
+        <div class="visual-container" style="width: 100%; height: 100%">
+          <div class="panel-header">
+            <div class="panel-title">
+              <i class="fa-solid fa-table-list" style="color: var(--primary);"></i>
+              <span>รายละเอียดการส่งต่อผู้ป่วย (Referral Details)</span>
+            </div>
+            <div class="panel-actions">
+              <div class="search-input-wrapper">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" class="search-input" id="refer-table-search" placeholder="ค้นหา AN, HN, MDC, DRG...">
+              </div>
+              <button class="btn btn-secondary" id="btn-refer-export-csv">
+                <i class="fa-solid fa-file-csv"></i> ส่งออก CSV
+              </button>
+            </div>
+          </div>
+          <div class="table-scroll-area">
+            <table class="data-table" id="refer-data-table">
+              <thead>
+                <tr>
+                  <th data-column="an">AN</th>
+                  <th data-column="hn">HN</th>
+                  <th data-column="dateadm">วันที่รับรักษา</th>
+                  <th data-column="datedsc">วันที่จำหน่าย</th>
+                  <th data-column="referout">รพ. ปลายทาง</th>
+                  <th data-column="mdc">MDC</th>
+                  <th data-column="drg">DRG</th>
+                  <th data-column="pttype">สิทธิ์การรักษา</th>
+                  <th data-column="pdx">วินิจฉัยหลัก</th>
+                </tr>
+              </thead>
+              <tbody id="refer-table-body">
+                <!-- Data will load here dynamically -->
+              </tbody>
+            </table>
+          </div>
+          <div id="refer-table-info" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; margin-top: 0.5rem;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 </main>
 </div>
 <!-- CDNs -->

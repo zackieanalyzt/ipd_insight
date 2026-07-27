@@ -15,6 +15,7 @@ let cmiMdcTrendChartInstance = null;
 let cmiMdcChartSearchQuery = '';
 let cmiSortColumn = 'mdc';
 let cmiSortDirection = 'asc';
+let globalMdcDescriptions = {};
 
 // Dashboard 2: Fund Transfer State
 let transferRawData = [];
@@ -59,6 +60,21 @@ let selectedOpdDistrict = 'all';
 let opdDiagSearchQuery = '';
 let opdTrendChartInstance = null;
 let opdDiagChartInstance = null;
+
+// Dashboard 5: Refer IPD State
+let referRawData = [];
+let referLoaded = false;
+let selectedReferYears = new Set();
+let selectedReferSchemes = new Set();
+let selectedReferMonths = new Set();
+let selectedReferHospital = 'all';
+let referTableSearchQuery = '';
+let referMdcDrgSearchQuery = '';
+let referHospitalChartInstance = null;
+let referMdcChartInstance = null;
+let referTrendChartInstance = null;
+let referSortColumn = 'dateadm';
+let referSortDirection = 'desc';
 
 // =====================================================
 // Fullscreen + Resize display area — Template for all charts
@@ -330,6 +346,18 @@ const opdChangwatSelect = document.getElementById('opd-changwat-select');
 const opdAmphurSelect = document.getElementById('opd-amphur-select');
 const opdDistrictSelect = document.getElementById('opd-district-select');
 
+// Document Elements - Dashboard 5: Refer
+const referFiltersContainer = document.getElementById('refer-filters-container');
+const referDashboardContent = document.getElementById('refer-dashboard-content');
+const referYearFiltersContainer = document.getElementById('refer-year-filters');
+const referSchemeFiltersContainer = document.getElementById('refer-scheme-filters');
+const referMonthFiltersContainer = document.getElementById('refer-month-filters');
+const referHospitalSelect = document.getElementById('refer-hospital-select');
+const referTableSearchInput = document.getElementById('refer-table-search');
+const referMdcDrgSearchInput = document.getElementById('refer-mdc-drg-search');
+const referTableBody = document.getElementById('refer-table-body');
+const btnReferExportCsv = document.getElementById('btn-refer-export-csv');
+
 // Initialize Dashboard Portal
 document.addEventListener('DOMContentLoaded', () => {
     // Restore sidebar state immediately on page load to prevent layout shifts
@@ -346,6 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     initConnectionStatusHandler();
     setupOpdEventListeners();
+    setupReferEventListeners();
     initGridStack();
 });
 
@@ -358,6 +387,9 @@ function resizeAllCharts() {
     if (itemsTrendChartInstance) itemsTrendChartInstance.resize();
     if (opdTrendChartInstance) opdTrendChartInstance.resize();
     if (opdDiagChartInstance) opdDiagChartInstance.resize();
+    if (referHospitalChartInstance) referHospitalChartInstance.resize();
+    if (referMdcChartInstance) referMdcChartInstance.resize();
+    if (referTrendChartInstance) referTrendChartInstance.resize();
 }
 
 // Setup event listeners for tab switching, themes, sorting, searching
@@ -844,11 +876,13 @@ function switchTab(tab) {
     transferFiltersContainer.classList.remove('active');
     itemsFiltersContainer.classList.remove('active');
     opdFiltersContainer.classList.remove('active');
+    referFiltersContainer.classList.remove('active');
     
     cmiDashboardContent.classList.remove('active');
     transferDashboardContent.classList.remove('active');
     itemsDashboardContent.classList.remove('active');
     opdDashboardContent.classList.remove('active');
+    referDashboardContent.classList.remove('active');
 
     if (tab === 'cmi') {
         cmiFiltersContainer.classList.add('active');
@@ -866,6 +900,37 @@ function switchTab(tab) {
         opdFiltersContainer.classList.add('active');
         opdDashboardContent.classList.add('active');
         updateOpdDashboard();
+    } else if (tab === 'refer') {
+        referFiltersContainer.classList.add('active');
+        referDashboardContent.classList.add('active');
+        if (!referLoaded) {
+            showLoading();
+            fetch('api/ipd/referrals')
+                .then(res => {
+                    if (!res.ok) throw new Error('Failed to load Referrals data');
+                    return res.json();
+                })
+                .then(data => {
+                    referRawData = data;
+                    referLoaded = true;
+                    initializeReferFilters();
+                    hideLoading();
+                    updateReferDashboard();
+                    if (grids['refer']) {
+                        setTimeout(() => {
+                            grids['refer'].compact();
+                            window.dispatchEvent(new Event('resize'));
+                        }, 50);
+                    }
+                })
+                .catch(err => {
+                    console.error('Error loading Referrals data:', err);
+                    hideLoading();
+                    alert('ไม่สามารถโหลดข้อมูลการส่งต่อผู้ป่วยได้: ' + err.message);
+                });
+        } else {
+            updateReferDashboard();
+        }
     }
 
     // Reflow GridStack for the active tab (ensures proper layout after tab switch)
@@ -983,6 +1048,33 @@ function resetActiveTabFilters() {
         selectedOpdDiagCodes.clear();
         if (opdDiagSelected) opdDiagSelected.innerHTML = '';
         updateOpdDashboard();
+    } else if (currentTab === 'refer') {
+        const yearCheckboxes = referYearFiltersContainer.querySelectorAll('input[type="checkbox"]');
+        yearCheckboxes.forEach(cb => {
+            cb.checked = true;
+            selectedReferYears.add(parseInt(cb.value));
+        });
+
+        const schemeCheckboxes = referSchemeFiltersContainer.querySelectorAll('input[type="checkbox"]');
+        schemeCheckboxes.forEach(cb => {
+            cb.checked = true;
+            selectedReferSchemes.add(cb.value);
+        });
+
+        const monthCheckboxes = referMonthFiltersContainer.querySelectorAll('input[type="checkbox"]');
+        monthCheckboxes.forEach(cb => {
+            cb.checked = true;
+            selectedReferMonths.add(cb.value);
+            cb.parentElement.classList.add('checked');
+        });
+
+        referHospitalSelect.value = 'all';
+        selectedReferHospital = 'all';
+        referTableSearchInput.value = '';
+        referTableSearchQuery = '';
+        if (referMdcDrgSearchInput) referMdcDrgSearchInput.value = '';
+        referMdcDrgSearchQuery = '';
+        updateReferDashboard();
     }
 }
 
@@ -1027,6 +1119,14 @@ function loadAllData() {
         })
         .then(data => {
             cmiRawData = data;
+            if (Array.isArray(cmiRawData)) {
+                cmiRawData.forEach(row => {
+                    if (row.mdc && row.mdc_desc) {
+                        const code = row.mdc.toString().padStart(2, '0');
+                        globalMdcDescriptions[code] = row.mdc_desc.trim();
+                    }
+                });
+            }
             cmiLoaded = true;
             checkAllLoaded();
         })
@@ -3880,7 +3980,7 @@ function initGridStack() {
         handle: '.kpi-header, .panel-header, .table-header, .breakdown-title'
     };
     
-    const tabs = ['cmi', 'transfer', 'items', 'opd'];
+    const tabs = ['cmi', 'transfer', 'items', 'opd', 'refer'];
     const originalDisplays = {};
     
     // 1. Temporarily force all dashboard contents to be visible so GridStack can read their widths
@@ -4252,6 +4352,743 @@ function exportCmiBenchmarkCSV() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const fileName = `CMI_Benchmark_Risk5-7_Li_Hospital_Years_${yVal}_Months_${mVal}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+
+// =============================================================================
+// DASHBOARD 5: REFER IPD LOGIC
+// =============================================================================
+
+const hospitalNames = {
+    '10714': 'โรงพยาบาลลำพูน',
+    '10713': 'โรงพยาบาลนครพิงค์',
+    '12280': 'โรงพยาบาลสวนปรุง',
+    '13780': 'โรงพยาบาลมหาราชนครเชียงใหม่',
+    '11144': 'โรงพยาบาลป่าซาง',
+    '11143': 'โรงพยาบาลทุ่งหัวช้าง',
+    '13785': 'โรงพยาบาลธัญญารักษ์เชียงใหม่',
+    '13775': 'สถาบันพัฒนาการเด็กราชนครินทร์',
+    'EA001': 'หน่วยงานเอกชน/อื่น ๆ (EA001)',
+    'FA001': 'หน่วยงานเอกชน/อื่น ๆ (FA001)'
+};
+
+function initializeReferFilters() {
+    // 1. Fiscal Year Filter
+    const uniqueYears = [...new Set(referRawData.total_counts.map(row => row.byear))].sort((a, b) => b - a);
+    selectedReferYears = new Set(uniqueYears);
+    
+    referYearFiltersContainer.innerHTML = '';
+    uniqueYears.forEach(year => {
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = year;
+        checkbox.checked = true;
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) selectedReferYears.add(year);
+            else selectedReferYears.delete(year);
+            updateReferDashboard();
+        });
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(`ปีงบประมาณ ${year}`));
+        referYearFiltersContainer.appendChild(label);
+    });
+
+    // 2. Health Coverage Scheme Filter (pttype)
+    const uniqueSchemes = [...new Set(referRawData.total_counts.map(row => row.pttype).filter(Boolean))].sort();
+    selectedReferSchemes = new Set(uniqueSchemes);
+    
+    referSchemeFiltersContainer.innerHTML = '';
+    uniqueSchemes.forEach(scheme => {
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = scheme;
+        checkbox.checked = true;
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) selectedReferSchemes.add(scheme);
+            else selectedReferSchemes.delete(scheme);
+            updateReferDashboard();
+        });
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(scheme));
+        referSchemeFiltersContainer.appendChild(label);
+    });
+
+    // 3. Admission Month Filter
+    const fiscalMonths = ['10', '11', '12', '01', '02', '03', '04', '05', '06', '07', '08', '09'];
+    selectedReferMonths = new Set(fiscalMonths);
+    
+    referMonthFiltersContainer.innerHTML = '';
+    fiscalMonths.forEach(monthCode => {
+        const monthLabel = monthNamesThai[monthCode] || monthCode;
+        const label = document.createElement('label');
+        label.className = 'checkbox-label checked';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = monthCode;
+        checkbox.checked = true;
+        
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                selectedReferMonths.add(monthCode);
+                label.classList.add('checked');
+            } else {
+                selectedReferMonths.delete(monthCode);
+                label.classList.remove('checked');
+            }
+            updateReferDashboard();
+        });
+        
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(monthLabel));
+        referMonthFiltersContainer.appendChild(label);
+    });
+
+    // 4. Target Hospital dropdown
+    const uniqueHospitals = [...new Set(referRawData.referrals.map(row => row.referout).filter(Boolean))].sort();
+    referHospitalSelect.innerHTML = '<option value="all">-- ทุกโรงพยาบาลปลายทาง --</option>';
+    uniqueHospitals.forEach(code => {
+        const option = document.createElement('option');
+        option.value = code;
+        option.text = hospitalNames[code] || `รหัส ${code}`;
+        referHospitalSelect.appendChild(option);
+    });
+}
+
+function setupReferEventListeners() {
+    referHospitalSelect.addEventListener('change', (e) => {
+        selectedReferHospital = e.target.value;
+        updateReferDashboard();
+    });
+
+    referTableSearchInput.addEventListener('input', (e) => {
+        referTableSearchQuery = e.target.value.toLowerCase().trim();
+        renderReferTable();
+    });
+
+    referMdcDrgSearchInput.addEventListener('input', (e) => {
+        referMdcDrgSearchQuery = e.target.value.toLowerCase().trim();
+        updateReferDashboard();
+    });
+
+    btnReferExportCsv.addEventListener('click', () => {
+        exportReferTableToCsv();
+    });
+
+    document.querySelectorAll('#refer-data-table th[data-column]').forEach(th => {
+        th.addEventListener('click', () => {
+            const column = th.getAttribute('data-column');
+            if (referSortColumn === column) {
+                referSortDirection = referSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                referSortColumn = column;
+                referSortDirection = 'asc';
+            }
+            
+            document.querySelectorAll('#refer-data-table th[data-column]').forEach(el => {
+                el.classList.remove('sort-asc', 'sort-desc');
+            });
+            th.classList.add(referSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+            
+            renderReferTable();
+        });
+    });
+}
+
+// Global window function for clear button in HTML
+window.referBulkSelectSchemes = function(selectAll) {
+    const checkboxes = referSchemeFiltersContainer.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        if (cb.checked !== selectAll) {
+            cb.checked = selectAll;
+            cb.dispatchEvent(new Event('change'));
+        }
+    });
+};
+
+function getFilteredReferData() {
+    if (!referRawData || !referRawData.referrals) return [];
+    return referRawData.referrals.filter(row => {
+        if (!selectedReferYears.has(row.byear)) return false;
+        if (!selectedReferSchemes.has(row.pttype)) return false;
+        if (!selectedReferMonths.has(row.adm_month)) return false;
+        if (selectedReferHospital !== 'all' && row.referout !== selectedReferHospital) return false;
+        if (referMdcDrgSearchQuery) {
+            const q = referMdcDrgSearchQuery.toLowerCase();
+            const mdc = (row.mdc || '').toLowerCase();
+            const drg = (row.drg || '').toLowerCase();
+            if (!mdc.includes(q) && !drg.includes(q)) return false;
+        }
+        return true;
+    });
+}
+
+function getFilteredTotalIPDCasesCount() {
+    if (!referRawData || !referRawData.total_counts) return 0;
+    let total = 0;
+    referRawData.total_counts.forEach(row => {
+        if (!selectedReferYears.has(row.byear)) return;
+        if (!selectedReferSchemes.has(row.pttype)) return;
+        if (!selectedReferMonths.has(row.adm_month)) return;
+        if (referMdcDrgSearchQuery) {
+            const q = referMdcDrgSearchQuery.toLowerCase();
+            const mdc = (row.mdc || '').toLowerCase();
+            const drg = (row.drg || '').toLowerCase();
+            if (!mdc.includes(q) && !drg.includes(q)) return;
+        }
+        total += parseInt(row.count) || 0;
+    });
+    return total;
+}
+
+function getReferKPIValuesForYear(year) {
+    if (!referRawData || !referRawData.referrals) {
+        return { referOutCases: 0, totalCases: 0, referRate: 0 };
+    }
+
+    // Filter referrals for the specific year (ignoring selectedReferYears filter)
+    const filteredRefers = referRawData.referrals.filter(row => {
+        if (row.byear !== year) return false;
+        if (!selectedReferSchemes.has(row.pttype)) return false;
+        if (!selectedReferMonths.has(row.adm_month)) return false;
+        if (selectedReferHospital !== 'all' && row.referout !== selectedReferHospital) return false;
+        if (referMdcDrgSearchQuery) {
+            const q = referMdcDrgSearchQuery.toLowerCase();
+            const mdc = (row.mdc || '').toLowerCase();
+            const drg = (row.drg || '').toLowerCase();
+            if (!mdc.includes(q) && !drg.includes(q)) return false;
+        }
+        return true;
+    });
+    const referOutCases = filteredRefers.length;
+
+    // Sum total cases for the specific year
+    let totalCases = 0;
+    if (referRawData.total_counts) {
+        referRawData.total_counts.forEach(row => {
+            if (row.byear !== year) return;
+            if (!selectedReferSchemes.has(row.pttype)) return;
+            if (!selectedReferMonths.has(row.adm_month)) return;
+            if (referMdcDrgSearchQuery) {
+                const q = referMdcDrgSearchQuery.toLowerCase();
+                const mdc = (row.mdc || '').toLowerCase();
+                const drg = (row.drg || '').toLowerCase();
+                if (!mdc.includes(q) && !drg.includes(q)) return;
+            }
+            totalCases += parseInt(row.count) || 0;
+        });
+    }
+
+    const referRate = totalCases > 0 ? (referOutCases / totalCases * 100) : 0;
+    return { referOutCases, totalCases, referRate };
+}
+
+function updateReferDashboard() {
+    const filtered = getFilteredReferData();
+    const referOutCases = filtered.length;
+    const totalCases = getFilteredTotalIPDCasesCount();
+    const referRate = totalCases > 0 ? (referOutCases / totalCases * 100) : 0;
+
+    document.getElementById('val-refer-total-cases').textContent = totalCases.toLocaleString();
+    document.getElementById('val-refer-out-cases').textContent = referOutCases.toLocaleString();
+    document.getElementById('val-refer-rate').textContent = `${referRate.toFixed(2)}%`;
+
+    // Calculate YoY Comparison if 2 or more fiscal years are selected
+    if (referRawData && referRawData.total_counts) {
+        const availableYears = [...new Set(referRawData.total_counts.map(row => row.byear))];
+        const { targetYear, baseYear } = getComparisonYears(selectedReferYears, availableYears);
+
+        if (targetYear && baseYear) {
+            const targetKPIs = getReferKPIValuesForYear(targetYear);
+            const baseKPIs = getReferKPIValuesForYear(baseYear);
+            const customText = `เทียบกับปีงบประมาณ ${baseYear}`;
+
+            renderKPIChangeBadge('badge-refer-total-cases', targetKPIs.totalCases, baseKPIs.totalCases, 'percentage', customText);
+            renderKPIChangeBadge('badge-refer-out-cases', targetKPIs.referOutCases, baseKPIs.referOutCases, 'percentage', customText);
+            renderKPIChangeBadge('badge-refer-rate', targetKPIs.referRate, baseKPIs.referRate, 'percentage', customText);
+        } else {
+            renderKPIChangeBadge('badge-refer-total-cases', null, null);
+            renderKPIChangeBadge('badge-refer-out-cases', null, null);
+            renderKPIChangeBadge('badge-refer-rate', null, null);
+        }
+    } else {
+        renderKPIChangeBadge('badge-refer-total-cases', null, null);
+        renderKPIChangeBadge('badge-refer-out-cases', null, null);
+        renderKPIChangeBadge('badge-refer-rate', null, null);
+    }
+
+    // Render charts
+    renderReferHospitalChart(filtered);
+    renderReferMdcChart(filtered);
+    renderReferTrendChart(filtered);
+
+    // Render table
+    renderReferTable();
+}
+
+function renderReferHospitalChart(data) {
+    const canvas = document.getElementById('referHospitalChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (referHospitalChartInstance) referHospitalChartInstance.destroy();
+
+    const activeYears = Array.from(selectedReferYears).sort((a, b) => a - b);
+    const isDark = document.body.classList.contains('dark-mode');
+    const gridColor = isDark ? '#243049' : '#e2e8f0';
+    const textColor = isDark ? '#9ca3af' : '#64748b';
+    const tooltipBg = isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)';
+
+    if (data.length === 0 || activeYears.length === 0) {
+        referHospitalChartInstance = new Chart(ctx, {
+            type: 'bar', data: { datasets: [] },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'ไม่มีข้อมูลแสดงผล', color: textColor } } }
+        });
+        return;
+    }
+
+    // 1. Group overall to find Top 10 Destination Hospitals across all selected years in data
+    const overallCounts = {};
+    data.forEach(row => {
+        if (row.referout) {
+            overallCounts[row.referout] = (overallCounts[row.referout] || 0) + 1;
+        }
+    });
+
+    const sorted = Object.entries(overallCounts)
+        .map(([code, count]) => ({
+            code,
+            name: hospitalNames[code] || `รหัส ${code}`,
+            count
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+    const labels = sorted.map(d => d.name);
+
+    // 2. Create datasets: one dataset per year
+    const barDatasets = activeYears.map(year => {
+        const color = getYearColor(year);
+        const dataPoints = sorted.map(d => {
+            return data.filter(row => row.byear === year && row.referout === d.code).length;
+        });
+
+        return {
+            label: `ปีงบประมาณ ${year}`,
+            data: dataPoints,
+            backgroundColor: color,
+            borderRadius: 4
+        };
+    });
+
+    referHospitalChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: barDatasets
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, font: { family: 'Inter', size: 10 }, callback: v => v.toLocaleString() }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { color: textColor, font: { family: 'Sarabun', size: 11 } }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: activeYears.length > 1,
+                    position: 'bottom',
+                    labels: { color: textColor, font: { family: 'Sarabun', size: 12 }, padding: 15, usePointStyle: true }
+                },
+                tooltip: {
+                    backgroundColor: tooltipBg,
+                    titleColor: isDark ? '#ffffff' : '#1e293b',
+                    bodyColor: isDark ? '#e2e8f0' : '#475569',
+                    titleFont: { family: 'Sarabun', size: 13, weight: 'bold' },
+                    bodyFont: { family: 'Sarabun', size: 13 },
+                    padding: 12,
+                    borderColor: isDark ? '#334155' : '#cbd5e1',
+                    borderWidth: 1,
+                    callbacks: {
+                        title: function(context) {
+                            return context[0].label;
+                        },
+                        label: function(context) {
+                            const val = context.raw;
+                            const datasetLabel = context.dataset.label;
+                            const year = parseInt(datasetLabel.replace('ปีงบประมาณ ', '').trim());
+                            const chart = context.chart;
+                            
+                            let compareText = '';
+                            // Find the closest preceding year in the selected datasets
+                            const precedingYears = chart.data.datasets
+                                .map(ds => parseInt(ds.label.replace('ปีงบประมาณ ', '').trim()))
+                                .filter(y => y < year)
+                                .sort((a, b) => b - a); // descending: closest is index 0
+                            
+                            if (precedingYears.length > 0) {
+                                const prevYear = precedingYears[0];
+                                const prevDataset = chart.data.datasets.find(ds => ds.label === `ปีงบประมาณ ${prevYear}`);
+                                if (prevDataset) {
+                                    const dataIndex = context.dataIndex;
+                                    const prevVal = prevDataset.data[dataIndex];
+                                    if (prevVal !== undefined && prevVal !== null && prevVal > 0) {
+                                        const pct = ((val - prevVal) / prevVal) * 100;
+                                        if (pct > 0) {
+                                            compareText = ` (เพิ่มขึ้น ${pct.toFixed(1)}% จากปี ${prevYear})`;
+                                        } else if (pct < 0) {
+                                            compareText = ` (ลดลง ${Math.abs(pct).toFixed(1)}% จากปี ${prevYear})`;
+                                        } else {
+                                            compareText = ` (เท่ากับปี ${prevYear})`;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            return ` ${datasetLabel}: ${val.toLocaleString()} ราย${compareText}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderReferMdcChart(data) {
+    const canvas = document.getElementById('referMdcChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (referMdcChartInstance) referMdcChartInstance.destroy();
+
+    const activeYears = Array.from(selectedReferYears).sort((a, b) => a - b);
+    const isDark = document.body.classList.contains('dark-mode');
+    const gridColor = isDark ? '#243049' : '#e2e8f0';
+    const textColor = isDark ? '#9ca3af' : '#64748b';
+    const tooltipBg = isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)';
+
+    if (data.length === 0 || activeYears.length === 0) {
+        referMdcChartInstance = new Chart(ctx, {
+            type: 'bar', data: { datasets: [] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'ไม่มีข้อมูลแสดงผล', color: textColor } } }
+        });
+        return;
+    }
+
+    // 1. Group overall to find Top 10 MDC codes across all selected years in data
+    const overallCounts = {};
+    data.forEach(row => {
+        if (row.mdc) {
+            overallCounts[row.mdc] = (overallCounts[row.mdc] || 0) + 1;
+        }
+    });
+
+    const sorted = Object.entries(overallCounts)
+        .map(([mdc, count]) => ({ mdc, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+    const labels = sorted.map(d => `MDC ${d.mdc}`);
+
+    // 2. Create datasets: one dataset per year, using getYearColor(year)
+    const barDatasets = activeYears.map(year => {
+        const color = getYearColor(year);
+        const dataPoints = sorted.map(d => {
+            return data.filter(row => row.byear === year && row.mdc === d.mdc).length;
+        });
+
+        return {
+            label: `ปีงบประมาณ ${year}`,
+            data: dataPoints,
+            backgroundColor: color,
+            borderRadius: 4
+        };
+    });
+
+    referMdcChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: barDatasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: textColor, font: { family: 'Inter', size: 10 } }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, font: { family: 'Inter', size: 10 }, callback: v => v.toLocaleString() }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: activeYears.length > 1,
+                    position: 'bottom',
+                    labels: { color: textColor, font: { family: 'Sarabun', size: 12 }, padding: 15, usePointStyle: true }
+                },
+                tooltip: {
+                    backgroundColor: tooltipBg,
+                    titleColor: isDark ? '#ffffff' : '#1e293b',
+                    bodyColor: isDark ? '#e2e8f0' : '#475569',
+                    titleFont: { family: 'Sarabun', size: 13, weight: 'bold' },
+                    bodyFont: { family: 'Sarabun', size: 13 },
+                    padding: 12,
+                    borderColor: isDark ? '#334155' : '#cbd5e1',
+                    borderWidth: 1,
+                    callbacks: {
+                        title: function(context) {
+                            const labelStr = context[0].label;
+                            const mdcCode = labelStr.replace('MDC ', '').trim();
+                            const desc = globalMdcDescriptions[mdcCode] || '';
+                            return `${labelStr} ${desc ? ': ' + desc : ''}`;
+                        },
+                        label: function(context) {
+                            const val = context.raw;
+                            const datasetLabel = context.dataset.label;
+                            const year = parseInt(datasetLabel.replace('ปีงบประมาณ ', '').trim());
+                            const chart = context.chart;
+                            
+                            let compareText = '';
+                            // Find the closest preceding year in the selected datasets
+                            const precedingYears = chart.data.datasets
+                                .map(ds => parseInt(ds.label.replace('ปีงบประมาณ ', '').trim()))
+                                .filter(y => y < year)
+                                .sort((a, b) => b - a); // descending: closest is index 0
+                            
+                            if (precedingYears.length > 0) {
+                                const prevYear = precedingYears[0];
+                                const prevDataset = chart.data.datasets.find(ds => ds.label === `ปีงบประมาณ ${prevYear}`);
+                                if (prevDataset) {
+                                    const dataIndex = context.dataIndex;
+                                    const prevVal = prevDataset.data[dataIndex];
+                                    if (prevVal !== undefined && prevVal !== null && prevVal > 0) {
+                                        const pct = ((val - prevVal) / prevVal) * 100;
+                                        if (pct > 0) {
+                                            compareText = ` (เพิ่มขึ้น ${pct.toFixed(1)}% จากปี ${prevYear})`;
+                                        } else if (pct < 0) {
+                                            compareText = ` (ลดลง ${Math.abs(pct).toFixed(1)}% จากปี ${prevYear})`;
+                                        } else {
+                                            compareText = ` (เท่ากับปี ${prevYear})`;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            return ` ${datasetLabel}: ${val.toLocaleString()} ราย${compareText}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderReferTrendChart(data) {
+    const canvas = document.getElementById('referTrendChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (referTrendChartInstance) referTrendChartInstance.destroy();
+
+    const monthly = {};
+    data.forEach(row => {
+        if (row.adm_year && row.adm_month) {
+            const key = `${row.adm_year}-${row.adm_month}`;
+            monthly[key] = (monthly[key] || 0) + 1;
+        }
+    });
+
+    const sortedKeys = Object.keys(monthly).sort();
+    const labels = sortedKeys.map(k => {
+        const parts = k.split('-');
+        const y = parts[0];
+        const m = parts[1];
+        const mn = { '01':'ม.ค.','02':'ก.พ.','03':'มี.ค.','04':'เม.ย.','05':'พ.ค.','06':'มิ.ย.','07':'ก.ค.','08':'ส.ค.','09':'ก.ย.','10':'ต.ค.','11':'พ.ย.','12':'ธ.ค.' }[m] || m;
+        return `${mn} ${y}`;
+    });
+    const countsData = sortedKeys.map(k => monthly[k]);
+
+    const isDark = document.body.classList.contains('dark-mode');
+    const gridColor = isDark ? '#243049' : '#e2e8f0';
+    const textColor = isDark ? '#9ca3af' : '#64748b';
+
+    referTrendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'จำนวนเคสที่ส่งต่อ (ราย)',
+                data: countsData,
+                borderColor: '#f59e0b',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                borderWidth: 2.5,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, font: { family: 'Inter', size: 10 } }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, font: { family: 'Inter', size: 10 }, callback: v => v.toLocaleString() }
+                }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+}
+
+function renderReferTable() {
+    const filtered = getFilteredReferData().filter(row => row.referout); // only show refer-out visits in detail table
+    
+    // Apply search query
+    let searched = filtered;
+    if (referTableSearchQuery) {
+        searched = filtered.filter(row => {
+            const destHosp = (hospitalNames[row.referout] || '').toLowerCase();
+            return (row.an && row.an.toLowerCase().includes(referTableSearchQuery)) ||
+                   (row.hn && row.hn.toLowerCase().includes(referTableSearchQuery)) ||
+                   (row.mdc && row.mdc.toLowerCase().includes(referTableSearchQuery)) ||
+                   (row.drg && row.drg.toLowerCase().includes(referTableSearchQuery)) ||
+                   (row.pttype && row.pttype.toLowerCase().includes(referTableSearchQuery)) ||
+                   (row.pdx && row.pdx.toLowerCase().includes(referTableSearchQuery)) ||
+                   destHosp.includes(referTableSearchQuery);
+        });
+    }
+
+    // Apply sorting
+    searched.sort((a, b) => {
+        let valA = a[referSortColumn];
+        let valB = b[referSortColumn];
+        
+        // Handle numeric values
+        if (referSortColumn === 'age' || referSortColumn === 'byear' || referSortColumn === 'adjrw') {
+            valA = parseFloat(valA) || 0;
+            valB = parseFloat(valB) || 0;
+        } else {
+            valA = String(valA || '').toLowerCase();
+            valB = String(valB || '').toLowerCase();
+        }
+
+        if (valA < valB) return referSortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return referSortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    // Render top 100 rows for performance
+    const limit = 100;
+    const paginated = searched.slice(0, limit);
+
+    referTableBody.innerHTML = '';
+    paginated.forEach(row => {
+        const tr = document.createElement('tr');
+        
+        const cells = [
+            row.an || '-',
+            row.hn || '-',
+            row.dateadm || '-',
+            row.datedsc || '-',
+            hospitalNames[row.referout] || row.referout || '-',
+            row.mdc || '-',
+            row.drg || '-',
+            row.pttype || '-',
+            row.pdx || '-'
+        ];
+
+        cells.forEach((cellText, idx) => {
+            const td = document.createElement('td');
+            td.textContent = cellText;
+            if (idx === 5 || idx === 6) {
+                td.style.fontFamily = 'Inter';
+                td.style.textAlign = 'center';
+            } else if (idx === 0 || idx === 1) {
+                td.style.fontFamily = 'Inter';
+            }
+            tr.appendChild(td);
+        });
+
+        referTableBody.appendChild(tr);
+    });
+
+    const infoEl = document.getElementById('refer-table-info');
+    if (infoEl) {
+        if (searched.length > limit) {
+            infoEl.textContent = `แสดง ${limit.toLocaleString()} รายการแรก จากผลการค้นหาทั้งหมด ${searched.length.toLocaleString()} รายการ (มีส่งออก CSV สำหรับข้อมูลทั้งหมด)`;
+        } else {
+            infoEl.textContent = `แสดงทั้งหมด ${searched.length.toLocaleString()} รายการ`;
+        }
+    }
+}
+
+function exportReferTableToCsv() {
+    const filtered = getFilteredReferData().filter(row => row.referout);
+    if (filtered.length === 0) {
+        alert('ไม่มีข้อมูลการส่งต่อให้ส่งออก');
+        return;
+    }
+
+    const headers = [
+        'AN', 'HN', 'วันที่รับรักษา (dateadm)', 'วันที่จำหน่าย (datedsc)', 
+        'รหัสโรงพยาบาลปลายทาง', 'ชื่อโรงพยาบาลปลายทาง', 'MDC', 'DRG', 
+        'สิทธิ์การรักษา (pttype)', 'วินิจฉัยหลัก (pdx)', 'น้ำหนักสัมพัทธ์ (adjrw)',
+        'เพศ', 'อายุ'
+    ];
+
+    const csvRows = [headers.join(',')];
+
+    filtered.forEach(row => {
+        const rowValues = [
+            `"${row.an || ''}"`,
+            `"${row.hn || ''}"`,
+            `"${row.dateadm || ''}"`,
+            `"${row.datedsc || ''}"`,
+            `"${row.referout || ''}"`,
+            `"${(hospitalNames[row.referout] || '').replace(/"/g, '""')}"`,
+            `"${row.mdc || ''}"`,
+            `"${row.drg || ''}"`,
+            `"${(row.pttype || '').replace(/"/g, '""')}"`,
+            `"${row.pdx || ''}"`,
+            row.adjrw || 0,
+            `"${row.sex || ''}"`,
+            row.age || 0
+        ];
+        csvRows.push(rowValues.join(','));
+    });
+
+    const csvContent = '\uFEFF' + csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const fileName = `IPD_Refer_Out_Report.csv`;
     link.href = URL.createObjectURL(blob);
     link.setAttribute('download', fileName);
     document.body.appendChild(link);

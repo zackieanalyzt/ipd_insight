@@ -62,12 +62,103 @@ let opdDiagCache = [];
 let opdLocCache = [];
 let cmiBenchmarkList = [];
 let ipdVisitsCache = [];
+let ipdReferralsCache = [];
+let ipdTotalCountsCache = [];
 
 // Database Connection & Failover State
 let currentMode = 'csv'; // Initial mode is csv, will try db on startup
 let pool = null;
 
+let redisClient = null;
+let dbCaches = {};
+
+function initializeRedis() {
+    if (config.redis && config.redis.enabled) {
+        console.log(`[${new Date().toISOString()}] Initializing Redis cache...`);
+        try {
+            const redis = require('redis');
+            redisClient = redis.createClient({
+                url: `redis://${config.redis.host || '127.0.0.1'}:${config.redis.port || 6379}`,
+                password: config.redis.password || undefined
+            });
+            redisClient.on('error', (err) => {
+                console.error('Redis Client Error:', err.message);
+            });
+            redisClient.connect().then(() => {
+                console.log(`[${new Date().toISOString()}] Connected to Redis successfully.`);
+            }).catch(err => {
+                console.error('Redis connection failed, falling back to local memory cache:', err.message);
+                redisClient = null;
+            });
+        } catch (e) {
+            console.warn('Redis package ("redis") is not installed. To enable Redis caching, please run: npm install redis');
+            redisClient = null;
+        }
+    }
+}
+
+async function fetchCachedData(type) {
+    const cacheKey = `ipd_insight:${type}`;
+    
+    // 1. Try Redis cache if enabled and connected
+    if (redisClient && redisClient.isOpen) {
+        try {
+            const cachedVal = await redisClient.get(cacheKey);
+            if (cachedVal) {
+                return JSON.parse(cachedVal);
+            }
+        } catch (err) {
+            console.error('Redis get error:', err.message);
+        }
+    }
+    
+    // 2. Try Local in-memory cache if found
+    if (dbCaches[type]) {
+        return dbCaches[type];
+    }
+    
+    // 3. Query Database
+    const data = await queryDatabase(type);
+    
+    // 4. Save to Local in-memory cache
+    dbCaches[type] = data;
+    
+    // 5. Save to Redis cache if enabled and connected
+    if (redisClient && redisClient.isOpen) {
+        try {
+            const ttl = (config.redis && config.redis.ttl_seconds) || 300;
+            await redisClient.set(cacheKey, JSON.stringify(data), { EX: ttl });
+        } catch (err) {
+            console.error('Redis set error:', err.message);
+        }
+    }
+    
+    return data;
+}
+
+async function clearDbCaches() {
+    dbCaches = {};
+    if (redisClient && redisClient.isOpen) {
+        try {
+            const keys = [
+                'ipd_insight:cmi',
+                'ipd_insight:referrals',
+                'ipd_insight:transfers',
+                'ipd_insight:items',
+                'ipd_insight:opd'
+            ];
+            for (const key of keys) {
+                await redisClient.del(key);
+            }
+            console.log('Redis caches cleared.');
+        } catch (err) {
+            console.error('Failed to clear Redis caches:', err.message);
+        }
+    }
+}
+
 function initializeDatabase() {
+    initializeRedis();
     if (!config.database) {
         console.warn('No database configuration found in config.json. Defaulting to CSV mode.');
         currentMode = 'csv';
@@ -286,6 +377,59 @@ async function queryDatabase(type) {
                 visit_count: parseInt(row.visit_count) || 0,
                 sum_age: parseInt(row.sum_age) || 0
             })).filter(row => row.byear > 0 && row.visit_count > 0);
+        } else if (type === 'referrals') {
+            const tableName = config.db_tables && config.db_tables.ipd_visit ? config.db_tables.ipd_visit : 'ipd_visit';
+            const resRefers = await client.query(`
+                SELECT an, hn, dateadm, datedsc, referout, mdc, drg, byear, pttype, inscl, pdx, adjrw, sex, age 
+                FROM ${tableName} 
+                WHERE referout IS NOT NULL AND referout != ''
+            `);
+            const referrals = resRefers.rows.map(row => {
+                const dateadm = row.dateadm ? row.dateadm.trim() : '';
+                let adm_year = '';
+                let adm_month = '';
+                if (dateadm && dateadm.length >= 7) {
+                    const parts = dateadm.split('-');
+                    if (parts.length >= 2) {
+                        adm_year = parts[0];
+                        adm_month = parts[1];
+                    }
+                }
+                return {
+                    an: row.an ? row.an.trim() : '',
+                    hn: row.hn ? row.hn.trim() : '',
+                    dateadm,
+                    datedsc: row.datedsc ? row.datedsc.trim() : '',
+                    adm_year,
+                    adm_month,
+                    referout: row.referout ? row.referout.trim() : '',
+                    mdc: row.mdc ? row.mdc.trim().padStart(2, '0') : '',
+                    drg: row.drg ? row.drg.trim() : '',
+                    byear: parseInt(row.byear) || 0,
+                    pttype: row.pttype ? row.pttype.trim() : 'ไม่ระบุ',
+                    inscl: row.inscl ? row.inscl.trim() : 'ไม่ระบุ',
+                    pdx: row.pdx ? row.pdx.trim() : '',
+                    adjrw: parseFloat(row.adjrw) || 0,
+                    sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
+                    age: parseInt(row.age) || 0
+                };
+            });
+
+            const resCounts = await client.query(`
+                SELECT byear, COALESCE(pttype, 'ไม่ระบุ') as pttype, split_part(dateadm, '-', 2) as adm_month, COALESCE(mdc, '') as mdc, COALESCE(drg, '') as drg, count(*) as count 
+                FROM ${tableName} 
+                GROUP BY byear, pttype, split_part(dateadm, '-', 2), mdc, drg
+            `);
+            const total_counts = resCounts.rows.map(row => ({
+                byear: parseInt(row.byear) || 0,
+                pttype: row.pttype ? row.pttype.trim() : 'ไม่ระบุ',
+                adm_month: row.adm_month ? row.adm_month.trim() : '',
+                mdc: row.mdc ? row.mdc.trim().padStart(2, '0') : '',
+                drg: row.drg ? row.drg.trim() : '',
+                count: parseInt(row.count) || 0
+            }));
+
+            return { referrals, total_counts };
         }
         return [];
     } finally {
@@ -589,16 +733,23 @@ function loadCmiBenchmark() {
 async function loadIpdVisitsStream() {
     const filePath = path.join(__dirname, 'ipd_visit.csv');
     ipdVisitsCache = [];
+    ipdReferralsCache = [];
+    ipdTotalCountsCache = [];
+
     if (!fs.existsSync(filePath)) {
         console.warn('ipd_visit.csv file not found:', filePath);
         return;
     }
 
+    const totalCountsMap = {};
+
     await processCSVStream(filePath, (row) => {
         const pdx = row.pdx ? row.pdx.trim() : '';
         const adjrw = parseFloat(row.adjrw) || 0;
         const datedsc = row.datedsc ? row.datedsc.trim() : '';
+        const dateadm = row.dateadm ? row.dateadm.trim() : '';
 
+        // Discharge year/month (for CMI Benchmark)
         let year = '';
         let month = '';
         if (datedsc && datedsc.length >= 7) {
@@ -613,9 +764,59 @@ async function loadIpdVisitsStream() {
             const pdx3 = pdx.substring(0, 3).toUpperCase();
             ipdVisitsCache.push({ pdx3, adjrw, year, month });
         }
+
+        // Admission year/month (for Referrals)
+        let adm_year = '';
+        let adm_month = '';
+        if (dateadm && dateadm.length >= 7) {
+            const parts = dateadm.split('-');
+            if (parts.length >= 2) {
+                adm_year = parts[0];
+                adm_month = parts[1];
+            }
+        }
+
+        const byear = parseInt(row.byear) || 0;
+        const pttype = row.pttype ? row.pttype.trim() : 'ไม่ระบุ';
+        const referout = row.referout ? row.referout.trim() : '';
+
+        // Aggregate total IPD cases count
+        if (byear > 0 && adm_month) {
+            const mdc = row.mdc ? row.mdc.trim().padStart(2, '0') : '';
+            const drg = row.drg ? row.drg.trim() : '';
+            const aggKey = `${byear}_${pttype}_${adm_month}_${mdc}_${drg}`;
+            if (!totalCountsMap[aggKey]) {
+                totalCountsMap[aggKey] = { byear, pttype, adm_month, mdc, drg, count: 0 };
+            }
+            totalCountsMap[aggKey].count += 1;
+        }
+
+        // Cache refer-out cases only
+        if (referout) {
+            ipdReferralsCache.push({
+                an: row.an ? row.an.trim() : '',
+                hn: row.hn ? row.hn.trim() : '',
+                dateadm,
+                datedsc,
+                adm_year,
+                adm_month,
+                referout,
+                mdc: row.mdc ? row.mdc.trim().padStart(2, '0') : '',
+                drg: row.drg ? row.drg.trim() : '',
+                byear,
+                pttype,
+                inscl: row.inscl ? row.inscl.trim() : 'ไม่ระบุ',
+                pdx,
+                adjrw,
+                sex: row.sex ? row.sex.trim() : 'ไม่ระบุ',
+                age: parseInt(row.age) || 0
+            });
+        }
     });
 
-    console.log(`[${new Date().toISOString()}] Loaded ipd_visit.csv: ${ipdVisitsCache.length} parsed records`);
+    ipdTotalCountsCache = Object.values(totalCountsMap);
+
+    console.log(`[${new Date().toISOString()}] Loaded ipd_visit.csv: ${ipdVisitsCache.length} benchmark, ${ipdReferralsCache.length} refer-outs, ${ipdTotalCountsCache.length} aggregations`);
 }
 
 // Clear all CSV caches (force reload on next read)
@@ -628,6 +829,9 @@ function clearAllCaches() {
     opdLocCache = [];
     cmiBenchmarkList = [];
     ipdVisitsCache = [];
+    ipdReferralsCache = [];
+    ipdTotalCountsCache = [];
+    clearDbCaches();
 }
 
 // Watch CSV files for changes & reload automatically
@@ -793,7 +997,7 @@ app.post('/api/reload', (req, res) => {
 app.get('/api/cmi', async (req, res) => {
     if (currentMode === 'db') {
         try {
-            const data = await queryDatabase('cmi');
+            const data = await fetchCachedData('cmi');
             res.json(data);
             return;
         } catch (err) {
@@ -838,6 +1042,8 @@ app.get('/api/cmi/benchmark', (req, res) => {
         if (selectedYearsList && !selectedYearsList.has(v.year)) continue;
         if (selectedMonthsList && !selectedMonthsList.has(v.month)) continue;
 
+        if (!v.pdx3) continue;
+
         if (!stats[v.pdx3]) {
             stats[v.pdx3] = { cases: 0, sum_adjrw: 0 };
         }
@@ -876,11 +1082,29 @@ app.get('/api/cmi/benchmark', (req, res) => {
     });
 });
 
+// API: Get IPD visits & referrals data
+app.get('/api/ipd/referrals', async (req, res) => {
+    if (currentMode === 'db') {
+        try {
+            const data = await fetchCachedData('referrals');
+            res.json(data);
+            return;
+        } catch (err) {
+            console.error('Failed to fetch referrals from database, falling back to CSV:', err.message);
+            switchToCSV('Query error: ' + err.message);
+        }
+    }
+    res.json({
+        referrals: ipdReferralsCache,
+        total_counts: ipdTotalCountsCache
+    });
+});
+
 // API: Get NHSO Fund Transfer data
 app.get('/api/transfers', async (req, res) => {
     if (currentMode === 'db') {
         try {
-            const data = await queryDatabase('transfers');
+            const data = await fetchCachedData('transfers');
             res.json(data);
             return;
         } catch (err) {
@@ -895,7 +1119,7 @@ app.get('/api/transfers', async (req, res) => {
 app.get('/api/items', async (req, res) => {
     if (currentMode === 'db') {
         try {
-            const data = await queryDatabase('items');
+            const data = await fetchCachedData('items');
             res.json(data);
             return;
         } catch (err) {
@@ -910,7 +1134,7 @@ app.get('/api/items', async (req, res) => {
 app.get('/api/opd/summary', async (req, res) => {
     if (currentMode === 'db') {
         try {
-            const data = await queryDatabase('opd');
+            const data = await fetchCachedData('opd');
             res.json(data);
             return;
         } catch (err) {
