@@ -842,7 +842,8 @@ function startCSVWatcher() {
         'items_summary_aggregated.csv',
         'opd_visit_summary.csv',
         'opd_diag_summary.csv',
-        'opd_location_summary.csv'
+        'opd_location_summary.csv',
+        'ipd_visit.csv'
     ];
 
     csvFiles.forEach(file => {

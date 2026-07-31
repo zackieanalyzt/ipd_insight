@@ -4641,7 +4641,7 @@ function renderReferHospitalChart(data) {
     const ctx = canvas.getContext('2d');
     if (referHospitalChartInstance) referHospitalChartInstance.destroy();
 
-    const activeYears = Array.from(selectedReferYears).sort((a, b) => a - b);
+    const activeYears = Array.from(selectedReferYears).sort((a, b) => b - a);
     const isDark = document.body.classList.contains('dark-mode');
     const gridColor = isDark ? '#243049' : '#e2e8f0';
     const textColor = isDark ? '#9ca3af' : '#64748b';
