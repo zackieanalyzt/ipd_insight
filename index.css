@@ -2609,3 +2609,77 @@ body.dark-mode .time-picker-wrapper {
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.2);
 }
+
+/* Referral Table Pagination Styling */
+.refer-pagination-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding-top: 0.75rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.refer-page-size-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.refer-page-size-select {
+    padding: 0.35rem 0.6rem;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.refer-page-size-select:focus,
+.refer-page-size-select:hover {
+    border-color: var(--primary);
+}
+
+.refer-table-info {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-align: center;
+    flex: 1;
+}
+
+.refer-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.refer-page-btn {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    line-height: 1;
+    min-width: 32px;
+    justify-content: center;
+}
+
+.refer-page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.refer-page-indicator {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    padding: 0 0.5rem;
+    white-space: nowrap;
+}

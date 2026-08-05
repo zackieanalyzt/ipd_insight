@@ -1181,7 +1181,26 @@
               </tbody>
             </table>
           </div>
-          <div id="refer-table-info" style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; margin-top: 0.5rem;"></div>
+          <div class="refer-pagination-wrapper">
+            <div class="refer-page-size-container">
+              <label for="refer-page-size"><i class="fa-solid fa-list-ol"></i> แสดงครั้งละ:</label>
+              <select id="refer-page-size" class="refer-page-size-select">
+                <option value="25">25 รายการ</option>
+                <option value="50">50 รายการ</option>
+                <option value="100" selected>100 รายการ</option>
+                <option value="250">250 รายการ</option>
+                <option value="all">ทั้งหมด</option>
+              </select>
+            </div>
+            <div id="refer-table-info" class="refer-table-info"></div>
+            <div class="refer-pagination-controls" id="refer-pagination-controls">
+              <button class="btn btn-secondary refer-page-btn" id="btn-refer-first-page" title="หน้าแรก"><i class="fa-solid fa-angles-left"></i></button>
+              <button class="btn btn-secondary refer-page-btn" id="btn-refer-prev-page" title="หน้าก่อนหน้า"><i class="fa-solid fa-chevron-left"></i></button>
+              <span class="refer-page-indicator" id="refer-page-indicator">หน้า 1 / 1</span>
+              <button class="btn btn-secondary refer-page-btn" id="btn-refer-next-page" title="หน้าถัดไป"><i class="fa-solid fa-chevron-right"></i></button>
+              <button class="btn btn-secondary refer-page-btn" id="btn-refer-last-page" title="หน้าสุดท้าย"><i class="fa-solid fa-angles-right"></i></button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

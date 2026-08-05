@@ -75,6 +75,29 @@ let referMdcChartInstance = null;
 let referTrendChartInstance = null;
 let referSortColumn = 'dateadm';
 let referSortDirection = 'desc';
+let referCurrentPage = 1;
+let referPageSize = 100;
+
+const patientIdHashCache = new Map();
+function hashPatientId(val) {
+    if (!val || val === '-' || String(val).trim() === '') return '-';
+    const str = String(val).trim();
+    if (patientIdHashCache.has(str)) return patientIdHashCache.get(str);
+
+    let h1 = 0xdeadbeef ^ 0;
+    let h2 = 0x41c6ce57 ^ 0;
+    for (let i = 0; i < str.length; i++) {
+        const ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    const hash = (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(12, '0').toUpperCase();
+    
+    patientIdHashCache.set(str, hash);
+    return hash;
+}
 
 // =====================================================
 // Fullscreen + Resize display area — Template for all charts
@@ -4472,6 +4495,7 @@ function setupReferEventListeners() {
 
     referTableSearchInput.addEventListener('input', (e) => {
         referTableSearchQuery = e.target.value.toLowerCase().trim();
+        referCurrentPage = 1;
         renderReferTable();
     });
 
@@ -4499,9 +4523,56 @@ function setupReferEventListeners() {
             });
             th.classList.add(referSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
             
+            referCurrentPage = 1;
             renderReferTable();
         });
     });
+
+    // Pagination Event Listeners
+    const pageSizeSelect = document.getElementById('refer-page-size');
+    if (pageSizeSelect) {
+        pageSizeSelect.addEventListener('change', (e) => {
+            referPageSize = e.target.value;
+            referCurrentPage = 1;
+            renderReferTable();
+        });
+    }
+
+    const btnFirst = document.getElementById('btn-refer-first-page');
+    if (btnFirst) {
+        btnFirst.addEventListener('click', () => {
+            if (referCurrentPage > 1) {
+                referCurrentPage = 1;
+                renderReferTable();
+            }
+        });
+    }
+
+    const btnPrev = document.getElementById('btn-refer-prev-page');
+    if (btnPrev) {
+        btnPrev.addEventListener('click', () => {
+            if (referCurrentPage > 1) {
+                referCurrentPage--;
+                renderReferTable();
+            }
+        });
+    }
+
+    const btnNext = document.getElementById('btn-refer-next-page');
+    if (btnNext) {
+        btnNext.addEventListener('click', () => {
+            referCurrentPage++;
+            renderReferTable();
+        });
+    }
+
+    const btnLast = document.getElementById('btn-refer-last-page');
+    if (btnLast) {
+        btnLast.addEventListener('click', () => {
+            referCurrentPage = Infinity; // renderReferTable will clamp this to totalPages
+            renderReferTable();
+        });
+    }
 }
 
 // Global window function for clear button in HTML
@@ -4632,6 +4703,7 @@ function updateReferDashboard() {
     renderReferTrendChart(filtered);
 
     // Render table
+    referCurrentPage = 1;
     renderReferTable();
 }
 
@@ -4976,8 +5048,12 @@ function renderReferTable() {
     if (referTableSearchQuery) {
         searched = filtered.filter(row => {
             const destHosp = (hospitalNames[row.referout] || '').toLowerCase();
+            const hashedAn = hashPatientId(row.an).toLowerCase();
+            const hashedHn = hashPatientId(row.hn).toLowerCase();
             return (row.an && row.an.toLowerCase().includes(referTableSearchQuery)) ||
                    (row.hn && row.hn.toLowerCase().includes(referTableSearchQuery)) ||
+                   hashedAn.includes(referTableSearchQuery) ||
+                   hashedHn.includes(referTableSearchQuery) ||
                    (row.mdc && row.mdc.toLowerCase().includes(referTableSearchQuery)) ||
                    (row.drg && row.drg.toLowerCase().includes(referTableSearchQuery)) ||
                    (row.pttype && row.pttype.toLowerCase().includes(referTableSearchQuery)) ||
@@ -4991,8 +5067,10 @@ function renderReferTable() {
         let valA = a[referSortColumn];
         let valB = b[referSortColumn];
         
-        // Handle numeric values
-        if (referSortColumn === 'age' || referSortColumn === 'byear' || referSortColumn === 'adjrw') {
+        if (referSortColumn === 'an' || referSortColumn === 'hn') {
+            valA = hashPatientId(valA).toLowerCase();
+            valB = hashPatientId(valB).toLowerCase();
+        } else if (referSortColumn === 'age' || referSortColumn === 'byear' || referSortColumn === 'adjrw') {
             valA = parseFloat(valA) || 0;
             valB = parseFloat(valB) || 0;
         } else {
@@ -5005,17 +5083,27 @@ function renderReferTable() {
         return 0;
     });
 
-    // Render top 100 rows for performance
-    const limit = 100;
-    const paginated = searched.slice(0, limit);
+    // Determine pagination state
+    const isAll = referPageSize === 'all';
+    const pageSize = isAll ? (searched.length || 1) : (parseInt(referPageSize, 10) || 100);
+    const totalPages = isAll ? 1 : Math.max(1, Math.ceil(searched.length / pageSize));
+
+    // Clamp current page
+    if (referCurrentPage < 1) referCurrentPage = 1;
+    if (referCurrentPage > totalPages) referCurrentPage = totalPages;
+
+    // Slice data for current page
+    const startIndex = isAll ? 0 : (referCurrentPage - 1) * pageSize;
+    const endIndex = isAll ? searched.length : Math.min(startIndex + pageSize, searched.length);
+    const paginated = searched.slice(startIndex, endIndex);
 
     referTableBody.innerHTML = '';
     paginated.forEach(row => {
         const tr = document.createElement('tr');
         
         const cells = [
-            row.an || '-',
-            row.hn || '-',
+            hashPatientId(row.an),
+            hashPatientId(row.hn),
             row.dateadm || '-',
             row.datedsc || '-',
             hospitalNames[row.referout] || row.referout || '-',
@@ -5040,14 +5128,35 @@ function renderReferTable() {
         referTableBody.appendChild(tr);
     });
 
+    // Update info text
     const infoEl = document.getElementById('refer-table-info');
     if (infoEl) {
-        if (searched.length > limit) {
-            infoEl.textContent = `แสดง ${limit.toLocaleString()} รายการแรก จากผลการค้นหาทั้งหมด ${searched.length.toLocaleString()} รายการ (มีส่งออก CSV สำหรับข้อมูลทั้งหมด)`;
-        } else {
+        if (searched.length === 0) {
+            infoEl.textContent = 'ไม่พบข้อมูลตามเงื่อนไขที่ค้นหา';
+        } else if (isAll) {
             infoEl.textContent = `แสดงทั้งหมด ${searched.length.toLocaleString()} รายการ`;
+        } else {
+            const startNum = startIndex + 1;
+            const endNum = endIndex;
+            infoEl.textContent = `แสดงรายการที่ ${startNum.toLocaleString()} - ${endNum.toLocaleString()} จากทั้งหมด ${searched.length.toLocaleString()} รายการ`;
         }
     }
+
+    // Update pagination controls UI
+    const indicatorEl = document.getElementById('refer-page-indicator');
+    if (indicatorEl) {
+        indicatorEl.textContent = `หน้า ${referCurrentPage.toLocaleString()} / ${totalPages.toLocaleString()}`;
+    }
+
+    const btnFirst = document.getElementById('btn-refer-first-page');
+    const btnPrev = document.getElementById('btn-refer-prev-page');
+    const btnNext = document.getElementById('btn-refer-next-page');
+    const btnLast = document.getElementById('btn-refer-last-page');
+
+    if (btnFirst) btnFirst.disabled = (referCurrentPage <= 1 || isAll);
+    if (btnPrev) btnPrev.disabled = (referCurrentPage <= 1 || isAll);
+    if (btnNext) btnNext.disabled = (referCurrentPage >= totalPages || isAll);
+    if (btnLast) btnLast.disabled = (referCurrentPage >= totalPages || isAll);
 }
 
 function exportReferTableToCsv() {
@@ -5058,7 +5167,7 @@ function exportReferTableToCsv() {
     }
 
     const headers = [
-        'AN', 'HN', 'วันที่รับรักษา (dateadm)', 'วันที่จำหน่าย (datedsc)', 
+        'AN (Hashed)', 'HN (Hashed)', 'วันที่รับรักษา (dateadm)', 'วันที่จำหน่าย (datedsc)', 
         'รหัสโรงพยาบาลปลายทาง', 'ชื่อโรงพยาบาลปลายทาง', 'MDC', 'DRG', 
         'สิทธิ์การรักษา (pttype)', 'วินิจฉัยหลัก (pdx)', 'น้ำหนักสัมพัทธ์ (adjrw)',
         'เพศ', 'อายุ'
@@ -5068,8 +5177,8 @@ function exportReferTableToCsv() {
 
     filtered.forEach(row => {
         const rowValues = [
-            `"${row.an || ''}"`,
-            `"${row.hn || ''}"`,
+            `"${hashPatientId(row.an)}"`,
+            `"${hashPatientId(row.hn)}"`,
             `"${row.dateadm || ''}"`,
             `"${row.datedsc || ''}"`,
             `"${row.referout || ''}"`,
