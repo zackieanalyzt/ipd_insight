@@ -4202,7 +4202,7 @@ function updateCmiBenchSortIcons() {
 }
 
 function loadCmiBenchmarkData(year, month, isInitial = false) {
-    const url = `/api/cmi/benchmark?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}`;
+    const url = `api/cmi/benchmark?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}`;
     fetch(url)
         .then(res => {
             if (!res.ok) throw new Error('Failed to fetch CMI benchmark data');
