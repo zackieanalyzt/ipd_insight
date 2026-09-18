@@ -2,13 +2,77 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { Pool } = require('pg');
 const dbExporter = require('./export-db-to-csv');
+const auth = require('./auth');
 
 const app = express();
 
-app.use(express.json());
+// Runs behind a reverse proxy (nginx), so trust X-Forwarded-For — otherwise
+// rate limiting and request logging would all see the proxy's IP.
+app.set('trust proxy', 1);
 
+// Security headers. CSP is report-only for now: the dashboards rely on inline
+// style attributes, so enforcing it before that refactor would break rendering.
+// Every other helmet header (frameguard, nosniff, HSTS, referrer-policy) applies
+// immediately. Check the browser console for CSP violations, then flip
+// reportOnly off once index.html/app.js no longer rely on inline styles.
+app.use(helmet({
+    contentSecurityPolicy: {
+        reportOnly: true,
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:'],
+            connectSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            frameAncestors: ["'none'"],
+            baseUri: ["'self'"]
+        }
+    }
+}));
+
+app.use(express.json({ limit: '100kb' }));
+
+// ── Authentication (Phase 2 OWASP) ────────────────────────────
+app.use(auth.createSessionMiddleware());
+
+// Auth API routes (registered before basePath patch so they exist on both)
+app.post('/login', (req, res) => {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+        return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' });
+    }
+    const result = auth.login(username, password, req.ip);
+    if (!result.success) {
+        return res.status(401).json(result);
+    }
+    req.session.user = result.user;
+    res.json({ success: true, user: result.user });
+});
+
+app.post('/logout', (req, res) => {
+    auth.logout(req.ip, req.session?.user?.username);
+    req.session.destroy(() => {});
+    res.json({ success: true, message: 'ออกจากระบบสำเร็จ' });
+});
+
+app.get('/api/auth/me', (req, res) => {
+    if (!req.session || !req.session.user) {
+        return res.status(401).json({ success: false, message: 'ยังไม่ได้เข้าสู่ระบบ' });
+    }
+    res.json({ success: true, user: req.session.user });
+});
+
+// Expose audit log for admin role only
+app.get('/api/auth/audit-log', auth.requireRole('admin'), (req, res) => {
+    auth.getAuditLog(req, res);
+});
+
+// ── BasePath / Reverse proxy ─────────────────────────────────
 // Dynamic subpath support for reverse proxies (e.g. /hmis)
 const basePath = (process.env.BASE_PATH || '').replace(/\/+$/, ''); // remove trailing slashes
 if (basePath) {
@@ -176,6 +240,11 @@ function initializeDatabase() {
         connectionTimeoutMillis: config.database.connectionTimeoutMillis || 3000,
         idleTimeoutMillis: config.database.idleTimeoutMillis || 30000
     });
+
+    // Pass the pg Pool to the auth subsystem so it can use the same connection
+    auth.setPool(pool);
+    // init auth tables (idempotent) — will fall back to SQLite if Pool fails later
+    auth.initAuthDb().catch(err => console.error('[auth] init failed:', err.message));
 
     pool.on('error', (err) => {
         console.error('Unexpected error on idle database client:', err.message);
@@ -867,22 +936,73 @@ app.use((req, res, next) => {
     next();
 });
 
-// Enable CORS for frontend running on other ports (e.g., port 8000)
+// CORS — allowlist only. Set ALLOWED_ORIGINS to a comma-separated list when the
+// frontend is served from a different origin; when unset, no CORS headers are
+// sent at all and the app is same-origin only.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+        res.header('Vary', 'Origin');
+    }
+    next();
+});
+
+// Rate limits. The admin endpoints verify credentials, so they get a far tighter
+// budget than read-only API traffic.
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'คำขอถี่เกินไป กรุณาลองใหม่ภายหลัง' }
+});
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'พยายามยืนยันตัวตนหลายครั้งเกินไป กรุณาลองใหม่ใน 15 นาที' }
+});
+
+app.use('/api', apiLimiter);
+if (basePath) {
+    app.use(basePath + '/api', apiLimiter);
+}
+
+// Never serve secrets, logs, or data files over HTTP. This must stay registered
+// ahead of express.static — otherwise the patient data files sitting next to the
+// app are downloadable by anyone who can reach the server.
+const BLOCKED_STATIC = /(^|\/)(config\.json|config\.example\.json|\.env(\..+)?|.+\.log|.+\.csv|.+\.gz|.+\.xlsx|package(-lock)?\.json|export-db-to-csv\.js|server\.js|Dockerfile|docker-compose\.yml)$/i;
+
+app.use((req, res, next) => {
+    let pathname;
+    try {
+        pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    } catch (err) {
+        return res.status(400).send('Bad Request');
+    }
+    if (BLOCKED_STATIC.test(pathname)) {
+        return res.status(403).send('Forbidden');
+    }
     next();
 });
 
 // Serve static web portal files from the current directory
-app.use(express.static(path.join(__dirname, '.')));
+app.use(express.static(path.join(__dirname, '.'), { dotfiles: 'deny' }));
 
 // API: Get status of database connection
 app.get('/api/status', (req, res) => {
     res.json({
         mode: currentMode,
-        db_connected: currentMode === 'db',
-        host: config.database ? config.database.host : null
+        db_connected: currentMode === 'db'
     });
 });
 
@@ -925,7 +1045,7 @@ app.get('/api/admin/config', (req, res) => {
 });
 
 // API: Save Sync Config (requires password verification)
-app.post('/api/admin/config', async (req, res) => {
+app.post('/api/admin/config', auth.requireRole('admin'), authLimiter, async (req, res) => {
     const { user, password, time } = req.body;
     if (!user || !time || !/^\d{2}:\d{2}$/.test(time)) {
         return res.status(400).json({ success: false, message: 'ข้อมูลไม่ครบถ้วน หรือรูปแบบเวลาไม่ถูกต้อง (ต้องเป็น HH:MM)' });
@@ -956,12 +1076,12 @@ app.post('/api/admin/config', async (req, res) => {
         res.json({ success: true, message: 'บันทึกเวลาและอัปเดตสิทธิ์เชื่อมต่อสำเร็จ' });
     } catch (err) {
         console.error('Failed to save config:', err);
-        res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดภายในระบบ: ' + err.message });
+        res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดภายในระบบ กรุณาติดต่อผู้ดูแลระบบ' });
     }
 });
 
 // API: Trigger manual sync (requires password verification)
-app.post('/api/admin/sync', async (req, res) => {
+app.post('/api/admin/sync', auth.requireRole('admin'), authLimiter, async (req, res) => {
     const { user, password } = req.body;
     if (!user || !password) {
         return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่านฐานข้อมูล' });
@@ -982,12 +1102,14 @@ app.post('/api/admin/sync', async (req, res) => {
         res.json({ success: true, message: 'ดึงข้อมูลจาก Database สำเร็จ และอัปโหลดไฟล์เรียบร้อยแล้ว' });
     } catch (err) {
         console.error('Manual sync failed:', err);
-        res.status(500).json({ success: false, message: 'การดึงข้อมูลล้มเหลว: ' + err.message });
+        res.status(500).json({ success: false, message: 'การดึงข้อมูลล้มเหลว กรุณาติดต่อผู้ดูแลระบบ' });
     }
 });
 
 // API: Manual reload all CSV data
-app.post('/api/reload', (req, res) => {
+// NOTE: interim control only — this reloads >1.5GB of CSV, so it is rate limited
+// until real authentication lands in phase 2 (see SECURITY-AUDIT.md).
+app.post('/api/reload', auth.requireAuth, authLimiter, (req, res) => {
     console.log(`[${new Date().toISOString()}] Manual reload triggered by user.`);
     clearAllCaches();
     loadCSVDataSources();

@@ -1,5 +1,37 @@
 node_modules/
 .DS_Store
+
+# ── Secrets (ห้าม commit) ──────────────────────────────
+config.json
+.env
+.env.*
+!.env.example
+
+# ── ข้อมูลผู้ป่วย / ข้อมูลภายใน (ห้าม commit) ──────────
 *.csv
 */*.csv
 **/*.csv
+*.xlsx
+*.gz
+*.log
+
+# ── ข้อมูลอ้างอิงที่ไม่ใช่ข้อมูลผู้ป่วย — อนุญาตให้ track ──
+!age_group.csv
+!h_office.csv
+!risk_criteria_sp_lamphun_04jun2024.csv
+!lamphun_geographic_data_tambon_nasai.csv
+!datasource/ipd_cmi_test.csv
+!CMI รพ risk5-7 - M1.csv
+
+# ── tooling / agent state ─────────────────────────────
+.zcode/
+.thclaws/
+tmp/
+
+# ── รายงานความปลอดภัย (ไม่ควรอัปโหลดสาธารณะ) ──────────
+SECURITY-AUDIT.md
+SUMMARY-PHASE1.md
+
+# ── Auth (local dev db) ────────────────────────────────
+auth.db
+auth.db-*

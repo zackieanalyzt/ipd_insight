@@ -1,9 +1,22 @@
 node_modules
+npm-debug.log
+
+# ── secrets — injected via docker-compose bind mount, never baked into the image ──
+config.json
+.env
+.env.*
+
+# ── VCS / tooling ──
 .git
 .gitignore
-server.log
-npm-debug.log
+.zcode
+.thclaws
 Dockerfile
 docker-compose.yml
-.zcode
+tmp
+
+# ── logs / reports / OS noise ──
+*.log
 *.xlsx
+.DS_Store
+*.md
